@@ -1,10 +1,13 @@
 // src/app.ts
-import express, { Application, Request } from "express";
+import express, { Application } from "express";
 import cors, { CorsOptions } from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { ENV } from "./env";
+
+// Rotas
 import authRoutes from "./routes/auth";
+import profileRoutes from "./routes/profile";       // ✅ NOVO
 
 const app: Application = express();
 
@@ -51,7 +54,7 @@ const corsCfg: CorsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 app.use(cors(corsCfg));
-// ⚠️ Não declare padrões como "*" ou "/(.*)" — o CORS middleware já trata preflight
+// ⚠️ Nada de "*" ou regex no app.options — o CORS middleware já trata preflight
 
 // ✅ Parser seguro
 app.use(express.json({ limit: "1mb" }));
@@ -71,5 +74,6 @@ app.use("/auth", authLimiter);
 
 // ✅ Rotas
 app.use(authRoutes);
+app.use(profileRoutes);        // ✅ perfil (GET/PUT /api/profile/me)
 
 export default app;
