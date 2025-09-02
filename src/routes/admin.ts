@@ -3,11 +3,17 @@ import { Router } from "express";
 import { authRequired } from "../middlewares/authJwt";
 import { adminOnly } from "../middlewares/adminOnly";
 import {
-  allProducts, createProduct, updateProduct, deleteProduct,
-  findProductById
+  allProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  findProductById,
 } from "../db/productsStore";
 import {
-  grantAccess, revokeAccess, grantsForEmail, allGrants
+  grantAccess,
+  revokeAccess,
+  grantsForEmail,
+  allGrants,
 } from "../db/grantsStore";
 
 const router = Router();
@@ -15,8 +21,16 @@ const router = Router();
 // Protege tudo que começar com /api/admin
 router.use("/api/admin", authRequired, adminOnly);
 
-// sanity/ping
-router.get("/api/admin/ping", (_req, res) => res.json({ ok: true, role: "admin" }));
+// sanity/ping → usado pelo frontend (getAdminGrants)
+router.get("/api/admin/ping", (req, res) => {
+  const email = (req as any)?.user?.sub;
+  res.json({
+    ok: true,
+    isAdmin: true,
+    roles: ["admin"],
+    email,
+  });
+});
 
 // === Produtos ===
 router.get("/api/admin/products", (_req, res) => {
@@ -28,7 +42,13 @@ router.post("/api/admin/products", (req, res) => {
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "missing_title" });
   }
-  const p = createProduct({ title, description, mediaUrl, price: Number(price) || undefined, active: !!active });
+  const p = createProduct({
+    title,
+    description,
+    mediaUrl,
+    price: Number(price) || undefined,
+    active: !!active,
+  });
   res.status(201).json({ product: p });
 });
 
@@ -55,15 +75,18 @@ router.get("/api/admin/grants", (req, res) => {
 
 router.post("/api/admin/grants", (req, res) => {
   const { email, productId, expiresAt } = req.body ?? {};
-  if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
-  if (!findProductById(productId)) return res.status(404).json({ error: "product_not_found" });
+  if (!email || !productId)
+    return res.status(400).json({ error: "missing_fields" });
+  if (!findProductById(productId))
+    return res.status(404).json({ error: "product_not_found" });
   const g = grantAccess(email, productId, expiresAt);
   res.status(201).json({ grant: g });
 });
 
 router.delete("/api/admin/grants", (req, res) => {
   const { email, productId } = req.query as any;
-  if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
+  if (!email || !productId)
+    return res.status(400).json({ error: "missing_fields" });
   const ok = revokeAccess(String(email), String(productId));
   if (!ok) return res.status(404).json({ error: "grant_not_found" });
   res.status(204).end();
