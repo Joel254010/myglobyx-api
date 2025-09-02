@@ -7,7 +7,9 @@ import { ENV } from "./env";
 
 // Rotas
 import authRoutes from "./routes/auth";
-import profileRoutes from "./routes/profile";       // ✅ NOVO
+import profileRoutes from "./routes/profile";
+import adminRoutes from "./routes/admin";           // ✅ NOVO
+import bibliotecaRoutes from "./routes/biblioteca"; // ✅ NOVO
 
 const app: Application = express();
 
@@ -30,7 +32,6 @@ const allowList = new Set<string>([
 ]);
 
 if (ENV.CORS_ORIGIN) {
-  // aceita 1 ou várias origens separadas por vírgula
   ENV.CORS_ORIGIN.split(",")
     .map((s) => s.trim())
     .filter(Boolean)
@@ -40,7 +41,6 @@ if (ENV.CORS_ORIGIN) {
 const corsCfg: CorsOptions = {
   origin: (origin, cb) => {
     if (!origin) return cb(null, true); // curl/Postman
-    // permite qualquer localhost (porta variável)
     if (
       origin.startsWith("http://localhost:") ||
       origin.startsWith("http://127.0.0.1:")
@@ -74,6 +74,10 @@ app.use("/auth", authLimiter);
 
 // ✅ Rotas
 app.use(authRoutes);
-app.use(profileRoutes);        // ✅ perfil (GET/PUT /api/profile/me)
+app.use(profileRoutes);        // GET/PUT /api/profile/me
+app.use(bibliotecaRoutes);     // /api/public/products, /api/me/products
+app.use(adminRoutes);          // /api/admin/* (protegidas)
+
+// (opcional) handler 404/erro poderia entrar aqui
 
 export default app;
