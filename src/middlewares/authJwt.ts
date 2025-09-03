@@ -1,4 +1,3 @@
-// src/middlewares/authJwt.ts
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload, Secret, SignOptions, VerifyOptions } from "jsonwebtoken";
 import { ENV } from "../env";
@@ -16,10 +15,10 @@ function strOrUndef(v: any): string | undefined {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
-/** Alguns tipos do jsonwebtoken mudam entre versões. Usa tipo cruzado estável. */
+/** Tipagem estável para expiresIn entre versões */
 type ExpiresType = string | number;
 
-/** Normaliza o expiresIn para string | number | undefined (cross-version safe) */
+/** Normaliza expiresIn */
 function resolveExpiresIn(v?: unknown): ExpiresType | undefined {
   if (v === undefined || v === null) return undefined;
   if (typeof v === "number") return v;
@@ -31,17 +30,19 @@ function resolveExpiresIn(v?: unknown): ExpiresType | undefined {
 export function signJwt(payload: AuthTokenPayload, expiresIn?: string | number) {
   const exp = resolveExpiresIn(expiresIn ?? ENV.TOKEN_EXPIRES_IN ?? "7d");
 
-  // Monta options sem expiresIn e injeta depois (evita chiado de tipos em versões antigas)
+  // Monta options **sem** issuer/audience inicialmente
   const options: SignOptions = {
     algorithm: "HS256",
-    issuer: strOrUndef(ENV.JWT_ISSUER),
-    audience: strOrUndef(ENV.JWT_AUDIENCE),
   };
 
-  if (exp !== undefined) {
-    // forçamos a propriedade de maneira compatível com múltiplas definições de tipo
-    (options as any).expiresIn = exp;
-  }
+  if (exp !== undefined) (options as any).expiresIn = exp;
+
+  // ⚠️ Só adiciona as chaves se forem strings válidas
+  const iss = strOrUndef((ENV as any).JWT_ISSUER);
+  if (iss) (options as any).issuer = iss;
+
+  const aud = strOrUndef((ENV as any).JWT_AUDIENCE);
+  if (aud) (options as any).audience = aud;
 
   return jwt.sign(payload, SECRET, options);
 }
@@ -50,10 +51,15 @@ export function signJwt(payload: AuthTokenPayload, expiresIn?: string | number) 
 export function verifyJwt(token: string): AuthTokenPayload {
   const options: VerifyOptions = {
     algorithms: ["HS256"],
-    issuer: strOrUndef(ENV.JWT_ISSUER),
-    audience: strOrUndef(ENV.JWT_AUDIENCE),
     clockTolerance: 5,
   };
+
+  const iss = strOrUndef((ENV as any).JWT_ISSUER);
+  if (iss) (options as any).issuer = iss;
+
+  const aud = strOrUndef((ENV as any).JWT_AUDIENCE);
+  if (aud) (options as any).audience = aud;
+
   return jwt.verify(token, SECRET, options) as AuthTokenPayload;
 }
 
