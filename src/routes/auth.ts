@@ -3,7 +3,7 @@ import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { ENV } from "../env";
-import { signJwt, verifyJwt } from "../middlewares/authJwt"; // ✅ usa helpers tipados
+import { signJwt, verifyJwt } from "../middlewares/authJwt";
 
 const router = Router();
 
@@ -40,7 +40,6 @@ function normalizeEmail(email: string) {
 }
 
 function signToken(user: Pick<User, "email" | "name">) {
-  // ✅ evita overload bug do jsonwebtoken usando helper centralizado
   return signJwt(
     { sub: user.email, name: user.name },
     ENV.TOKEN_EXPIRES_IN || "7d"
@@ -80,7 +79,7 @@ async function seedAdminFromEnv() {
     const password = process.env.ADMIN_SEED_PASSWORD || "123456";
     await upsertUser("Admin", email, password);
   } catch {
-    // silencioso para não quebrar boot
+    // silencioso
   }
 }
 
@@ -146,7 +145,6 @@ function meHandler(req: Request, res: Response) {
     }
     const token = auth.slice(pref.length);
 
-    // ✅ usa verifyJwt (mesmas políticas de issuer/audience/alg)
     const payload = verifyJwt(token);
     const email = String(payload.sub || "").toLowerCase();
     if (!email) return res.status(401).json({ error: "invalid_token" });
@@ -161,7 +159,7 @@ function meHandler(req: Request, res: Response) {
 }
 
 /* -------------------------------------------------------
-   Dev/Seed (opcional, protegido por chave)
+   Dev/Seed & Reset Admin (protegidos por chave)
 -------------------------------------------------------- */
 async function seedAdminHandler(req: Request, res: Response) {
   const key = req.header("x-seed-key");
@@ -181,6 +179,40 @@ async function seedAdminHandler(req: Request, res: Response) {
   return res.json({ ok: true, user: { email: user.email, name: user.name } });
 }
 
+/** Reinicializa/atualiza a senha do admin (re-hash com BCRYPT_ROUNDS atual) */
+async function resetAdminHandler(req: Request, res: Response) {
+  const key = req.header("x-seed-key");
+  if (!key || key !== (process.env.SEED_KEY || ENV.JWT_SECRET)) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+
+  const body = (req.body ?? {}) as { email?: string; password?: string; name?: string };
+  const email =
+    (body.email ||
+      (process.env.ADMIN_EMAILS || "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)[0] ||
+      "admin@myglobyx.com").trim().toLowerCase();
+
+  const password = String(body.password || process.env.ADMIN_SEED_PASSWORD || "123456");
+  const name = String(body.name || "Admin");
+
+  // re-hash com custo atual
+  const passwordHash = await bcrypt.hash(password, Number(process.env.BCRYPT_ROUNDS) || 10);
+
+  const existing = users.get(email);
+  if (existing) {
+    existing.passwordHash = passwordHash;
+    existing.name = name;
+    return res.json({ ok: true, action: "updated", user: { email, name } });
+  }
+
+  const user: User = { name, email, passwordHash, createdAt: new Date() };
+  users.set(email, user);
+  return res.json({ ok: true, action: "created", user: { email, name } });
+}
+
 /* -------------------------------------------------------
    Rotas “oficiais”
    (mantemos compatibilidade com /api/users/* também)
@@ -189,8 +221,9 @@ router.post("/auth/signup", signupHandler);
 router.post("/auth/login", loginHandler);
 router.get("/auth/me", meHandler);
 
-// Dev/seed opcional
+// Dev tools (protegidos por x-seed-key)
 router.post("/auth/dev/seed-admin", seedAdminHandler);
+router.post("/auth/dev/reset-admin", resetAdminHandler);
 
 // Aliases de compatibilidade
 router.post("/api/users/signup", signupHandler);
