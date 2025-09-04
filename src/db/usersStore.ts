@@ -1,56 +1,75 @@
-// src/db/usersStore.ts
+import bcrypt from "bcryptjs";
+import { usersCol, UserDoc } from "./mongo";
 
-export type User = {
-  id: string;
-  name: string;
-  email: string;        // sempre normalizado (lowercase/trim)
-  passwordHash: string; // bcrypt hash
-  createdAt: string;    // ISO string
-};
+const ROUNDS = Number(process.env.BCRYPT_ROUNDS || process.env.BCRYPT_SALT_ROUNDS || 10);
 
-// Índices em memória (será trocado por Mongo depois)
-const byId = new Map<string, User>();
-const byEmail = new Map<string, string>(); // email normalizado -> id
-
-export function normalizeEmail(email: string): string {
-  return String(email || "").trim().toLowerCase();
+function norm(email: string) {
+  return email.trim().toLowerCase();
 }
 
-export function getUserById(id: string): User | null {
-  return byId.get(id) ?? null;
+/** Busca usuário pelo e-mail (normalizado) */
+export async function findUserByEmail(email: string): Promise<UserDoc | null> {
+  const col = await usersCol();
+  return col.findOne({ email: norm(email) });
 }
 
-export function findUserByEmail(email: string): User | null {
-  const id = byEmail.get(normalizeEmail(email));
-  return id ? byId.get(id) ?? null : null;
-}
+/** Cria usuário (erro se e-mail já existir) */
+export async function createUser(
+  name: string,
+  email: string,
+  password: string
+): Promise<UserDoc> {
+  const col = await usersCol();
+  const emailNorm = norm(email);
 
-/**
- * Cria usuário garantindo e-mail único (case-insensitive).
- * Lança Error("email_in_use") se já existir.
- */
-export function createUser(u: User): User {
-  const emailNorm = normalizeEmail(u.email);
-  if (byEmail.has(emailNorm)) {
-    throw new Error("email_in_use");
+  const already = await col.findOne({ email: emailNorm });
+  if (already) {
+    const err: any = new Error("email_in_use");
+    err.code = "email_in_use";
+    throw err;
   }
-  const toSave: User = {
-    ...u,
+
+  const passwordHash = await bcrypt.hash(password, ROUNDS);
+  const now = new Date();
+  const doc = {
+    name: name.trim(),
     email: emailNorm,
-    createdAt: u.createdAt ?? new Date().toISOString(),
-  };
-  byId.set(toSave.id, toSave);
-  byEmail.set(emailNorm, toSave.id);
-  return toSave;
+    passwordHash,
+    createdAt: now,
+  } as Omit<UserDoc, "_id"> as any;
+
+  const res = await col.insertOne(doc);
+  return { _id: res.insertedId, ...doc } as UserDoc;
 }
 
-/** Opcional: retorna versão pública sem hash */
-export function toPublicUser(u: User) {
-  return { id: u.id, name: u.name, email: u.email, createdAt: u.createdAt };
+/** Upsert para seeds/reset de admin (atualiza nome/senha; cria se não existir) */
+export async function upsertUserPassword(
+  name: string,
+  email: string,
+  password: string
+): Promise<UserDoc> {
+  const col = await usersCol();
+  const emailNorm = norm(email);
+  const passwordHash = await bcrypt.hash(password, ROUNDS);
+
+  await col.updateOne(
+    { email: emailNorm },
+    { $set: { name: name.trim(), passwordHash }, $setOnInsert: { createdAt: new Date() } },
+    { upsert: true }
+  );
+
+  const user = await col.findOne({ email: emailNorm });
+  if (!user) throw new Error("upsert_failed");
+  return user;
 }
 
-/** Utilitário para testes/dev */
-export function _clearUsersStore() {
-  byId.clear();
-  byEmail.clear();
+/** Atualiza somente o hash de senha (caso já tenha sido calculado fora) */
+export async function setPasswordHash(email: string, passwordHash: string): Promise<void> {
+  const col = await usersCol();
+  await col.updateOne({ email: norm(email) }, { $set: { passwordHash } });
+}
+
+/** Helper opcional para comparar senha */
+export async function verifyPassword(user: UserDoc, password: string): Promise<boolean> {
+  return bcrypt.compare(password, user.passwordHash);
 }
