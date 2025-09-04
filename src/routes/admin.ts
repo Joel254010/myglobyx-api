@@ -18,6 +18,8 @@ import {
   allGrants,
 } from "../db/grantsStore";
 
+import { listUsersBasic } from "../db/usersStore";
+
 const router = Router();
 
 // Protege tudo que começar com /api/admin
@@ -25,8 +27,22 @@ router.use("/api/admin", authRequired, adminOnly);
 
 /** sanity/ping */
 router.get("/api/admin/ping", (req: Request, res: Response) => {
-  const email = (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
+  const email =
+    (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
   return res.json({ ok: true, isAdmin: true, roles: ["admin"], email });
+});
+
+/* ============ Usuários (Painel) ============ */
+/**
+ * GET /api/admin/users?page=1&limit=25
+ * Retorna { total, page, limit, users: [{ name, email, phone?, isVerified?, createdAt?, updatedAt? }] }
+ */
+router.get("/api/admin/users", async (req: Request, res: Response) => {
+  const page = Math.max(1, Number(req.query.page || 1));
+  const limit = Math.max(1, Math.min(100, Number(req.query.limit || 25)));
+
+  const data = await listUsersBasic(page, limit);
+  return res.json({ page, limit, ...data });
 });
 
 /* ============ Produtos ============ */
@@ -80,7 +96,8 @@ router.get("/api/admin/grants", async (req, res) => {
 
 router.post("/api/admin/grants", async (req, res) => {
   const { email, productId, expiresAt } = req.body ?? {};
-  if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
+  if (!email || !productId)
+    return res.status(400).json({ error: "missing_fields" });
 
   const prod = await findProductById(String(productId));
   if (!prod) return res.status(404).json({ error: "product_not_found" });
@@ -91,7 +108,8 @@ router.post("/api/admin/grants", async (req, res) => {
 
 router.delete("/api/admin/grants", async (req, res) => {
   const { email, productId } = req.query as any;
-  if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
+  if (!email || !productId)
+    return res.status(400).json({ error: "missing_fields" });
 
   const ok = await revokeAccess(String(email), String(productId));
   if (!ok) return res.status(404).json({ error: "grant_not_found" });
