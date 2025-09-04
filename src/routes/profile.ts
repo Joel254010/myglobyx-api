@@ -2,31 +2,10 @@
 import { Router, Request, Response } from "express";
 import { authRequired, AuthTokenPayload } from "../middlewares/authJwt";
 import { z } from "zod";
-import { findUserByEmail } from "../db/usersStore";
+import { getProfileByEmail, upsertProfile } from "../db/profilesStore";
+import { findUserByEmail } from "../db/usersStore"; // só para tentar pré-preencher o nome
 
 const router = Router();
-
-type Address = {
-  cep?: string;
-  street?: string;
-  number?: string;
-  complement?: string;
-  district?: string;
-  city?: string;
-  state?: string;
-};
-
-export type Profile = {
-  name: string;
-  email: string; // não editável aqui; vem do token
-  phone?: string;
-  birthdate?: string; // YYYY-MM-DD
-  document?: string;  // CPF
-  address?: Address;
-};
-
-// cache simples em memória
-const profiles = new Map<string, Profile>();
 
 const profileSchema = z.object({
   name: z.string().min(2).max(60),
@@ -49,55 +28,40 @@ function emailFromReq(req: Request) {
   return String(payload?.sub || "").toLowerCase();
 }
 
-router.get(
-  "/api/profile/me",
-  authRequired,
-  async (req: Request, res: Response) => {
-    const email = emailFromReq(req);
+/* GET /api/profile/me */
+router.get("/api/profile/me", authRequired, async (req: Request, res: Response) => {
+  const email = emailFromReq(req);
 
-    // se já tem perfil em memória, retorna
-    const existing = profiles.get(email);
-    if (existing) return res.json({ profile: existing });
+  // 1) tenta no Atlas
+  const dbProfile = await getProfileByEmail(email);
+  if (dbProfile) return res.json({ profile: dbProfile });
 
-    // >>> AQUI É O PONTO IMPORTANTE <<<
+  // 2) se não existe, tenta pegar o nome do "users" (se existir) só para preencher
+  let name = "";
+  try {
     const u = await findUserByEmail(email);
-
-    const base: Profile = {
-      name: u?.name ?? "",
-      email,
-    };
-
-    return res.json({ profile: base });
+    name = u?.name ?? "";
+  } catch {
+    // silencioso
   }
-);
 
-router.put("/api/profile/me", authRequired, (req: Request, res: Response) => {
+  return res.json({ profile: { email, name } });
+});
+
+/* PUT /api/profile/me */
+router.put("/api/profile/me", authRequired, async (req: Request, res: Response) => {
   const email = emailFromReq(req);
 
   const parsed = profileSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res
-      .status(400)
-      .json({ error: "validation_error", issues: parsed.error.flatten() });
+    return res.status(400).json({
+      error: "validation_error",
+      issues: parsed.error.flatten(),
+    });
   }
 
-  const incoming = parsed.data;
-  const current =
-    profiles.get(email) ??
-    ({
-      email,
-      name: incoming.name,
-    } as Profile);
-
-  const merged: Profile = {
-    ...current,
-    ...incoming,
-    email,
-    address: { ...(current.address ?? {}), ...(incoming.address ?? {}) },
-  };
-
-  profiles.set(email, merged);
-  return res.json({ profile: merged });
+  const updated = await upsertProfile(email, parsed.data);
+  return res.json({ profile: updated });
 });
 
 export default router;
