@@ -49,22 +49,25 @@ function emailFromReq(req: Request) {
   return String(payload?.sub || "").toLowerCase();
 }
 
-router.get("/api/profile/me", authRequired, (req, res) => {
+router.get("/api/profile/me", authRequired, async (req: Request, res: Response) => {
   const email = emailFromReq(req);
-  const existing = profiles.get(email);
 
+  // se já tem perfil em memória, retorna
+  const existing = profiles.get(email);
   if (existing) return res.json({ profile: existing });
 
-  // base: pega nome do usuário do "usersStore"
-  const u = findUserByEmail(email);
+  // base: pega nome do usuário no usersStore (Mongo)
+  const u = await findUserByEmail(email);
+
   const base: Profile = {
     name: u?.name ?? "",
     email,
   };
+
   return res.json({ profile: base });
 });
 
-router.put("/api/profile/me", authRequired, (req, res) => {
+router.put("/api/profile/me", authRequired, (req: Request, res: Response) => {
   const email = emailFromReq(req);
 
   const parsed = profileSchema.safeParse(req.body);
