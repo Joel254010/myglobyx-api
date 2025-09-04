@@ -1,15 +1,19 @@
 import { MongoClient, Db, Collection, ObjectId } from "mongodb";
 import { ENV } from "../env";
 
-// Cache de cliente/DB para reuso entre requisições
+/* -------------------------------------------------------
+   Conexão (singleton)
+-------------------------------------------------------- */
 let client: MongoClient | null = null;
 let db: Db | null = null;
 
-// Tipos base (vamos reaproveitar nos stores)
+/* -------------------------------------------------------
+   Tipos base das coleções
+-------------------------------------------------------- */
 export type UserDoc = {
   _id: ObjectId;
   name: string;
-  email: string;         // normalizado
+  email: string;          // normalizado
   passwordHash: string;
   createdAt: Date;
 };
@@ -28,18 +32,20 @@ export type ProductDoc = {
 
 export type GrantDoc = {
   _id: ObjectId;
-  email: string;         // normalizado
+  email: string;          // normalizado
   productId: ObjectId;
   createdAt: Date;
   expiresAt?: Date;
 };
 
-// Helper pra criar ObjectId a partir de string
-export function oid(id: string) {
+/* -------------------------------------------------------
+   Helpers
+-------------------------------------------------------- */
+export function oid(id: string): ObjectId {
   return new ObjectId(id);
 }
 
-// Singleton do DB
+/** Abre (ou reaproveita) a conexão e garante índices */
 export async function getDb(): Promise<Db> {
   if (db) return db;
   if (!ENV.MONGODB_URI) throw new Error("MONGODB_URI not set");
@@ -52,7 +58,7 @@ export async function getDb(): Promise<Db> {
   return db;
 }
 
-// Índices obrigatórios (únicos)
+/** Índices obrigatórios/únicos */
 async function ensureIndexes(_db: Db) {
   await _db.collection<UserDoc>("users")
     .createIndex({ email: 1 }, { unique: true });
@@ -64,15 +70,20 @@ async function ensureIndexes(_db: Db) {
     .createIndex({ email: 1, productId: 1 }, { unique: true });
 }
 
-// Coleções tipadas
+/* -------------------------------------------------------
+   Acesso às coleções tipadas
+-------------------------------------------------------- */
 export async function usersCol(): Promise<Collection<UserDoc>> {
-  return (await getDb()).collection<UserDoc>("users");
+  const database = await getDb();
+  return database.collection<UserDoc>("users");
 }
 
 export async function productsCol(): Promise<Collection<ProductDoc>> {
-  return (await getDb()).collection<ProductDoc>("products");
+  const database = await getDb();
+  return database.collection<ProductDoc>("products");
 }
 
 export async function grantsCol(): Promise<Collection<GrantDoc>> {
-  return (await getDb()).collection<GrantDoc>("grants");
+  const database = await getDb();
+  return database.collection<GrantDoc>("grants");
 }
