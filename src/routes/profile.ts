@@ -25,7 +25,7 @@ export type Profile = {
   address?: Address;
 };
 
-// store em memória por usuário (email -> profile)
+// cache simples em memória
 const profiles = new Map<string, Profile>();
 
 const profileSchema = z.object({
@@ -49,23 +49,27 @@ function emailFromReq(req: Request) {
   return String(payload?.sub || "").toLowerCase();
 }
 
-router.get("/api/profile/me", authRequired, async (req: Request, res: Response) => {
-  const email = emailFromReq(req);
+router.get(
+  "/api/profile/me",
+  authRequired,
+  async (req: Request, res: Response) => {
+    const email = emailFromReq(req);
 
-  // se já tem perfil em memória, retorna
-  const existing = profiles.get(email);
-  if (existing) return res.json({ profile: existing });
+    // se já tem perfil em memória, retorna
+    const existing = profiles.get(email);
+    if (existing) return res.json({ profile: existing });
 
-  // base: pega nome do usuário no usersStore (Mongo)
-  const u = await findUserByEmail(email);
+    // >>> AQUI É O PONTO IMPORTANTE <<<
+    const u = await findUserByEmail(email);
 
-  const base: Profile = {
-    name: u?.name ?? "",
-    email,
-  };
+    const base: Profile = {
+      name: u?.name ?? "",
+      email,
+    };
 
-  return res.json({ profile: base });
-});
+    return res.json({ profile: base });
+  }
+);
 
 router.put("/api/profile/me", authRequired, (req: Request, res: Response) => {
   const email = emailFromReq(req);
@@ -77,12 +81,13 @@ router.put("/api/profile/me", authRequired, (req: Request, res: Response) => {
       .json({ error: "validation_error", issues: parsed.error.flatten() });
   }
 
-  // nunca permitimos trocar e-mail por aqui
   const incoming = parsed.data;
-  const current = profiles.get(email) ?? {
-    email,
-    name: incoming.name,
-  };
+  const current =
+    profiles.get(email) ??
+    ({
+      email,
+      name: incoming.name,
+    } as Profile);
 
   const merged: Profile = {
     ...current,
