@@ -22,8 +22,8 @@ import { listUsersBasic } from "../db/usersStore";
 
 const router = Router();
 
-// ✅ este router já entra montado em /api/admin (feito no app.ts)
-// protegemos tudo aqui dentro:
+// ✅ este router será montado em /api/admin lá no app.ts
+//    então aqui dentro usamos caminhos relativos.
 router.use(authRequired, adminOnly);
 
 /** sanity/ping */
