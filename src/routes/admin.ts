@@ -1,23 +1,36 @@
+// src/routes/admin.ts
 import { Router, Request, Response } from "express";
 import { authRequired } from "../middlewares/authJwt";
 import { adminOnly } from "../middlewares/adminOnly";
+
 import {
-  allProducts, createProduct, updateProduct, deleteProduct, findProductById
+  allProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  findProductById,
 } from "../db/productsStore";
+
 import {
-  grantAccess, revokeAccess, grantsForEmail, allGrants
+  grantAccess,
+  revokeAccess,
+  grantsForEmail,
+  allGrants,
 } from "../db/grantsStore";
+
 import { listUsersBasic } from "../db/usersStore";
 
 const router = Router();
 
-/** ===== PROBES DE DIAGNÓSTICO (sem auth) =====
- *  Use para confirmar montagem em produção:
- *   - GET /api/admin/__alive      -> "admin router alive"
- *   - GET /api/admin/__routes     -> lista rotas registradas neste router
+/** ========= PROBES (SEM AUTH) =========
+ * Caminhos absolutos para manter o padrão do seu projeto.
+ * Devem responder SEM token.
  */
-router.get("/__alive", (_req, res) => res.type("text/plain").send("admin router alive"));
-router.get("/__routes", (_req, res) => {
+router.get("/api/admin/__alive", (_req, res) => {
+  res.type("text/plain").send("admin router alive");
+});
+
+router.get("/api/admin/__routes", (_req, res) => {
   const stack = (router as any).stack || [];
   const routes = stack
     .filter((l: any) => l?.route)
@@ -25,33 +38,35 @@ router.get("/__routes", (_req, res) => {
       path: l.route?.path,
       methods: Object.keys(l.route?.methods || {}),
     }));
-  res.json({ base: "/api/admin", routes });
+  res.json({ routes });
 });
 
-/** ===== Proteção: tudo abaixo exige JWT admin ===== */
-router.use(authRequired, adminOnly);
+/** ========= GUARDS (a partir daqui exige JWT admin) ========= */
+router.use("/api/admin", authRequired, adminOnly);
 
-/** sanity/ping (sem JWT correto → 401/403, NUNCA 404) */
-router.get("/ping", (req: Request, res: Response) => {
+/** sanity/ping */
+router.get("/api/admin/ping", (req: Request, res: Response) => {
   const email = (req as any)?.user?.sub?.toString?.()?.toLowerCase?.();
   return res.json({ ok: true, isAdmin: true, roles: ["admin"], email });
 });
 
-/** ===== Usuários ===== */
-router.get("/users", async (req, res) => {
+/** ========= Usuários ========= */
+router.get("/api/admin/users", async (req, res) => {
   const page = Math.max(parseInt(String(req.query.page || "1"), 10) || 1, 1);
   const rawLimit = parseInt(String(req.query.limit || "25"), 10) || 25;
   const limit = Math.min(Math.max(rawLimit, 1), 100);
+
   const { total, users } = await listUsersBasic(page, limit);
   return res.json({ total, page, limit, users });
 });
 
-/** ===== Produtos ===== */
-router.get("/products", async (_req, res) => {
+/** ========= Produtos ========= */
+router.get("/api/admin/products", async (_req, res) => {
   const items = await allProducts();
   return res.json({ products: items });
 });
-router.post("/products", async (req, res) => {
+
+router.post("/api/admin/products", async (req, res) => {
   const { title, description, mediaUrl, price, active } = req.body ?? {};
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "missing_title" });
@@ -66,27 +81,33 @@ router.post("/products", async (req, res) => {
     });
     return res.status(201).json({ product: p });
   } catch (err: any) {
-    return res.status(400).json({ error: err?.message || "create_failed" });
+    const code = err?.message || "create_failed";
+    return res.status(400).json({ error: code });
   }
 });
-router.put("/products/:id", async (req, res) => {
-  const updated = await updateProduct(req.params.id, req.body ?? {});
+
+router.put("/api/admin/products/:id", async (req, res) => {
+  const { id } = req.params;
+  const patch = req.body ?? {};
+  const updated = await updateProduct(id, patch);
   if (!updated) return res.status(404).json({ error: "product_not_found" });
   return res.json({ product: updated });
 });
-router.delete("/products/:id", async (req, res) => {
+
+router.delete("/api/admin/products/:id", async (req, res) => {
   const ok = await deleteProduct(req.params.id);
   if (!ok) return res.status(404).json({ error: "product_not_found" });
   return res.status(204).end();
 });
 
-/** ===== Grants ===== */
-router.get("/grants", async (req, res) => {
+/** ========= Grants ========= */
+router.get("/api/admin/grants", async (req, res) => {
   const email = (req.query.email as string | undefined)?.trim();
   if (email) return res.json({ grants: await grantsForEmail(email) });
   return res.json({ grants: await allGrants() });
 });
-router.post("/grants", async (req, res) => {
+
+router.post("/api/admin/grants", async (req, res) => {
   const { email, productId, expiresAt } = req.body ?? {};
   if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
 
@@ -96,7 +117,8 @@ router.post("/grants", async (req, res) => {
   const g = await grantAccess(String(email), String(productId), expiresAt);
   return res.status(201).json({ grant: g });
 });
-router.delete("/grants", async (req, res) => {
+
+router.delete("/api/admin/grants", async (req, res) => {
   const { email, productId } = req.query as any;
   if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
 
