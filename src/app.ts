@@ -19,7 +19,7 @@ app.use(authRoutes);
 app.use(profileRoutes);
 app.use(bibliotecaRoutes);
 
-// ⬇️⬇️ Monta o router de admin explicitamente em /api/admin
-app.use("/api/admin", adminRoutes);
+// ✅ SEM prefixo aqui, porque as rotas já são absolutas (/api/admin/...)
+app.use(adminRoutes);
 
 export default app;
