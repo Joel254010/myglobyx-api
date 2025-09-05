@@ -22,11 +22,13 @@ import { listUsersBasic } from "../db/usersStore";
 
 const router = Router();
 
-// ✅ este router será montado em /api/admin lá no app.ts
-//    então aqui dentro usamos caminhos relativos.
+/** 🔎 PROBE TEMPORÁRIO: coloque ANTES dos guards para validar montagem (remoção depois) */
+router.get("/__probe", (_req, res) => res.type("text/plain").send("admin router alive"));
+
+/** Protege tudo abaixo com JWT + admin */
 router.use(authRequired, adminOnly);
 
-/** sanity/ping */
+/** sanity/ping (deve responder 200 com token; sem token → 401/403) */
 router.get("/ping", (req: Request, res: Response) => {
   const email = (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
   return res.json({ ok: true, isAdmin: true, roles: ["admin"], email });
