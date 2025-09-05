@@ -1,11 +1,9 @@
-// src/app.ts
 import express, { Application } from "express";
 import cors, { CorsOptions } from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { ENV } from "./env";
 
-// Rotas
 import authRoutes from "./routes/auth";
 import profileRoutes from "./routes/profile";
 import adminRoutes from "./routes/admin";
@@ -22,7 +20,6 @@ app.use(
   })
 );
 
-// -------- CORS --------
 const baseAllow = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
@@ -42,9 +39,7 @@ function isAllowedOrigin(origin: string) {
     if (/\.netlify\.app$/.test(host)) return true;
     if (host === "localhost" || host === "127.0.0.1") return true;
     return false;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 const corsCfg: CorsOptions = {
@@ -54,8 +49,8 @@ const corsCfg: CorsOptions = {
     return cb(new Error(`CORS_NOT_ALLOWED: ${origin}`));
   },
   credentials: false,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"],
   optionsSuccessStatus: 204,
 };
 
@@ -69,17 +64,16 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
+  max: 100, standardHeaders: true, legacyHeaders: false,
 });
 app.use("/auth", authLimiter);
 
-// Rotas
+// Rotas de negócio
 app.use(authRoutes);
 app.use(profileRoutes);
 app.use(bibliotecaRoutes);
-app.use("/api/admin", adminRoutes); // <- ✅ prefixo fixo aqui
+
+// 🔑 Prefixo ÚNICO do admin aqui
+app.use("/api/admin", adminRoutes);
 
 export default app;
-

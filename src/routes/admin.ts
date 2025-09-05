@@ -1,24 +1,44 @@
-// src/routes/admin.ts
 import { Router, Request, Response } from "express";
 import { authRequired } from "../middlewares/authJwt";
 import { adminOnly } from "../middlewares/adminOnly";
-import { allProducts, createProduct, updateProduct, deleteProduct, findProductById } from "../db/productsStore";
-import { grantAccess, revokeAccess, grantsForEmail, allGrants } from "../db/grantsStore";
+import {
+  allProducts, createProduct, updateProduct, deleteProduct, findProductById
+} from "../db/productsStore";
+import {
+  grantAccess, revokeAccess, grantsForEmail, allGrants
+} from "../db/grantsStore";
 import { listUsersBasic } from "../db/usersStore";
 
 const router = Router();
 
-// protege tudo /api/admin/*
-router.use("/api/admin", authRequired, adminOnly);
+/** ===== PROBES DE DIAGNÓSTICO (sem auth) =====
+ *  Use para confirmar montagem em produção:
+ *   - GET /api/admin/__alive      -> "admin router alive"
+ *   - GET /api/admin/__routes     -> lista rotas registradas neste router
+ */
+router.get("/__alive", (_req, res) => res.type("text/plain").send("admin router alive"));
+router.get("/__routes", (_req, res) => {
+  const stack = (router as any).stack || [];
+  const routes = stack
+    .filter((l: any) => l?.route)
+    .map((l: any) => ({
+      path: l.route?.path,
+      methods: Object.keys(l.route?.methods || {}),
+    }));
+  res.json({ base: "/api/admin", routes });
+});
 
-/** sanity/ping */
-router.get("/api/admin/ping", (_req: Request, res: Response) => {
-  const email = (res.req as any)?.user?.sub?.toString?.()?.toLowerCase?.();
+/** ===== Proteção: tudo abaixo exige JWT admin ===== */
+router.use(authRequired, adminOnly);
+
+/** sanity/ping (sem JWT correto → 401/403, NUNCA 404) */
+router.get("/ping", (req: Request, res: Response) => {
+  const email = (req as any)?.user?.sub?.toString?.()?.toLowerCase?.();
   return res.json({ ok: true, isAdmin: true, roles: ["admin"], email });
 });
 
-/* ============ Usuários ============ */
-router.get("/api/admin/users", async (req, res) => {
+/** ===== Usuários ===== */
+router.get("/users", async (req, res) => {
   const page = Math.max(parseInt(String(req.query.page || "1"), 10) || 1, 1);
   const rawLimit = parseInt(String(req.query.limit || "25"), 10) || 25;
   const limit = Math.min(Math.max(rawLimit, 1), 100);
@@ -26,13 +46,12 @@ router.get("/api/admin/users", async (req, res) => {
   return res.json({ total, page, limit, users });
 });
 
-/* ============ Produtos ============ */
-router.get("/api/admin/products", async (_req, res) => {
+/** ===== Produtos ===== */
+router.get("/products", async (_req, res) => {
   const items = await allProducts();
   return res.json({ products: items });
 });
-
-router.post("/api/admin/products", async (req, res) => {
+router.post("/products", async (req, res) => {
   const { title, description, mediaUrl, price, active } = req.body ?? {};
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "missing_title" });
@@ -50,27 +69,24 @@ router.post("/api/admin/products", async (req, res) => {
     return res.status(400).json({ error: err?.message || "create_failed" });
   }
 });
-
-router.put("/api/admin/products/:id", async (req, res) => {
+router.put("/products/:id", async (req, res) => {
   const updated = await updateProduct(req.params.id, req.body ?? {});
   if (!updated) return res.status(404).json({ error: "product_not_found" });
   return res.json({ product: updated });
 });
-
-router.delete("/api/admin/products/:id", async (req, res) => {
+router.delete("/products/:id", async (req, res) => {
   const ok = await deleteProduct(req.params.id);
   if (!ok) return res.status(404).json({ error: "product_not_found" });
   return res.status(204).end();
 });
 
-/* ============ Grants ============ */
-router.get("/api/admin/grants", async (req, res) => {
+/** ===== Grants ===== */
+router.get("/grants", async (req, res) => {
   const email = (req.query.email as string | undefined)?.trim();
   if (email) return res.json({ grants: await grantsForEmail(email) });
   return res.json({ grants: await allGrants() });
 });
-
-router.post("/api/admin/grants", async (req, res) => {
+router.post("/grants", async (req, res) => {
   const { email, productId, expiresAt } = req.body ?? {};
   if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
 
@@ -80,8 +96,7 @@ router.post("/api/admin/grants", async (req, res) => {
   const g = await grantAccess(String(email), String(productId), expiresAt);
   return res.status(201).json({ grant: g });
 });
-
-router.delete("/api/admin/grants", async (req, res) => {
+router.delete("/grants", async (req, res) => {
   const { email, productId } = req.query as any;
   if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
 
