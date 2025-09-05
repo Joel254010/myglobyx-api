@@ -27,26 +27,21 @@ router.use("/api/admin", authRequired, adminOnly);
 
 /** sanity/ping */
 router.get("/api/admin/ping", (req: Request, res: Response) => {
-  const email =
-    (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
+  const email = (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
   return res.json({ ok: true, isAdmin: true, roles: ["admin"], email });
 });
 
-/* ============ Usuários (Painel) ============ */
-/**
- * GET /api/admin/users?page=1&limit=25
- * Retorna { total, page, limit, users: [{ name, email, phone?, isVerified?, createdAt?, updatedAt? }] }
- */
-router.get("/api/admin/users", async (req: Request, res: Response) => {
-  const page = Math.max(1, Number(req.query.page || 1));
-  const limit = Math.max(1, Math.min(100, Number(req.query.limit || 25)));
+/* ============ Usuários (novo) ============ */
+router.get("/api/admin/users", async (req, res) => {
+  const page = Math.max(parseInt(String(req.query.page || "1"), 10) || 1, 1);
+  const rawLimit = parseInt(String(req.query.limit || "25"), 10) || 25;
+  const limit = Math.min(Math.max(rawLimit, 1), 100);
 
-  const data = await listUsersBasic(page, limit);
-  return res.json({ page, limit, ...data });
+  const { total, users } = await listUsersBasic(page, limit);
+  return res.json({ total, page, limit, users });
 });
 
 /* ============ Produtos ============ */
-
 router.get("/api/admin/products", async (_req, res) => {
   const items = await allProducts();
   return res.json({ products: items });
@@ -87,7 +82,6 @@ router.delete("/api/admin/products/:id", async (req, res) => {
 });
 
 /* ============ Grants ============ */
-
 router.get("/api/admin/grants", async (req, res) => {
   const email = (req.query.email as string | undefined)?.trim();
   if (email) return res.json({ grants: await grantsForEmail(email) });
@@ -96,8 +90,7 @@ router.get("/api/admin/grants", async (req, res) => {
 
 router.post("/api/admin/grants", async (req, res) => {
   const { email, productId, expiresAt } = req.body ?? {};
-  if (!email || !productId)
-    return res.status(400).json({ error: "missing_fields" });
+  if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
 
   const prod = await findProductById(String(productId));
   if (!prod) return res.status(404).json({ error: "product_not_found" });
@@ -108,8 +101,7 @@ router.post("/api/admin/grants", async (req, res) => {
 
 router.delete("/api/admin/grants", async (req, res) => {
   const { email, productId } = req.query as any;
-  if (!email || !productId)
-    return res.status(400).json({ error: "missing_fields" });
+  if (!email || !productId) return res.status(400).json({ error: "missing_fields" });
 
   const ok = await revokeAccess(String(email), String(productId));
   if (!ok) return res.status(404).json({ error: "grant_not_found" });

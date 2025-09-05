@@ -6,7 +6,7 @@ import { usersCol, UserDoc } from "./mongo";
 
 const ROUNDS = Number(process.env.BCRYPT_ROUNDS || process.env.BCRYPT_SALT_ROUNDS || 10);
 const TOKEN_TTL_MINUTES = Number(process.env.EMAIL_TOKEN_TTL_MINUTES || 60);
-const API_PUBLIC_URL = process.env.API_PUBLIC_URL || "http://localhost:5000";
+const API_PUBLIC_URL = process.env.API_PUBLIC_URL || "http://localhost:4000";
 const EMAIL_FROM = process.env.EMAIL_FROM || "MyGlobyX <no-reply@myglobyx.com>";
 
 function norm(email: string) {
@@ -20,7 +20,7 @@ function makeVerifyLink(token: string) {
 
 /** Transport condicional: se SMTP_* não estiver setado, vira dry-run (só console.log) */
 function getMailer() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env as Record<string, string | undefined>;
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
     return null; // dry-run
   }
@@ -76,16 +76,16 @@ export async function initializeUserIndexes(): Promise<void> {
   const col = await usersCol();
   try {
     await col.createIndex({ email: 1 }, { unique: true, name: "uniq_email" });
-  } catch (_) {}
+  } catch {}
   try {
     await col.createIndex({ createdAt: -1 }, { name: "by_createdAt_desc" });
-  } catch (_) {}
+  } catch {}
   try {
     await col.createIndex({ isVerified: 1 }, { name: "by_isVerified" });
-  } catch (_) {}
+  } catch {}
   try {
     await col.createIndex({ verificationToken: 1, verificationExpires: 1 }, { name: "by_verify_token" });
-  } catch (_) {}
+  } catch {}
 }
 
 /** Busca usuário pelo e-mail (normalizado) */
@@ -103,7 +103,8 @@ export async function findUserByEmail(email: string): Promise<UserDoc | null> {
 export async function createUser(
   name: string,
   email: string,
-  password: string
+  password: string,
+  phone?: string
 ): Promise<UserDoc> {
   const col = await usersCol();
   const emailNorm = norm(email);
@@ -127,10 +128,10 @@ export async function createUser(
     passwordHash,
     createdAt: now,
     updatedAt: now,
-    // novos campos para 1º acesso via e-mail
     isVerified: false,
     verificationToken,
     verificationExpires,
+    ...(phone ? { phone: String(phone).trim() } : {}),
   } as Omit<UserDoc, "_id"> as any;
 
   const res = await col.insertOne(doc);
@@ -268,7 +269,10 @@ export async function listUsersBasic(
   const [total, docs] = await Promise.all([
     col.countDocuments({}),
     col
-      .find({}, { projection: { name: 1, email: 1, phone: 1, isVerified: 1, createdAt: 1, updatedAt: 1 } })
+      .find(
+        {},
+        { projection: { name: 1, email: 1, phone: 1, isVerified: 1, createdAt: 1, updatedAt: 1 } }
+      )
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
