@@ -131,6 +131,9 @@ export async function createUser(
     phone?: string;
     verificationToken?: string;
     verificationExpires?: Date;
+    birthdate?: string;
+    document?: string;
+    address?: any;
   } = {
     name: name.trim(),
     email: emailNorm,
@@ -256,6 +259,54 @@ export async function verifyByToken(token: string): Promise<boolean> {
   return true;
 }
 
+/* ========= PATCH de Perfil ========= */
+type AddressPatch = {
+  cep?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  city?: string;
+  state?: string;
+};
+type ProfilePatch = {
+  name?: string;
+  phone?: string;
+  birthdate?: string;
+  document?: string;
+  address?: AddressPatch;
+};
+
+/** ✅ Atualiza dados do perfil e retorna o doc atualizado (ou null se não existir) */
+export async function updateUserProfile(
+  email: string,
+  patch: ProfilePatch
+): Promise<UserDoc | null> {
+  const col = await usersCol();
+  const emailNorm = norm(email);
+
+  const user = (await col.findOne({ email: emailNorm } as any)) as any;
+  if (!user) return null;
+
+  const now = new Date();
+  const $set: any = { updatedAt: now };
+
+  if (patch.name !== undefined) $set.name = String(patch.name).trim();
+  if (patch.phone !== undefined) $set.phone = String(patch.phone).trim();
+  if (patch.birthdate !== undefined) $set.birthdate = String(patch.birthdate).trim();
+  if (patch.document !== undefined) $set.document = String(patch.document).trim();
+
+  if (patch.address !== undefined) {
+    // merge simples com o que já existe
+    const prevAddr = (user as any).address || {};
+    $set.address = { ...prevAddr, ...patch.address };
+  }
+
+  await col.updateOne({ _id: user._id } as any, { $set });
+  const updated = (await col.findOne({ _id: user._id } as any)) as UserDoc | null;
+  return updated;
+}
+
 /* ========= Listagem para Admin ========= */
 export async function listUsersBasic(
   page = 1,
@@ -287,7 +338,7 @@ export async function listUsersBasic(
       .toArray(),
   ]);
 
-    const users = docs.map((d: any) => ({
+  const users = docs.map((d: any) => ({
     name: d.name,
     email: d.email,
     phone: d.phone,
@@ -298,4 +349,3 @@ export async function listUsersBasic(
 
   return { total, users };
 }
-
