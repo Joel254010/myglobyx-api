@@ -1,82 +1,68 @@
+// src/middlewares/authJwt.ts
 import { Request, Response, NextFunction } from "express";
-import jwt, { JwtPayload, Secret, SignOptions, VerifyOptions } from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import { ENV } from "../env";
 
-/** Payload do nosso token (email em sub, nome opcional) */
-export interface AuthTokenPayload extends JwtPayload {
-  sub: string; // email normalizado
-  name?: string;
+export type AuthTokenPayload = JwtPayload & {
+  sub: string;        // usamos o e-mail normalizado aqui
+  email?: string;     // redundante, também normalizado
+};
+
+function normalizeEmail(v: unknown): string {
+  return String(v ?? "").trim().toLowerCase();
 }
 
-const SECRET: Secret = (ENV.JWT_SECRET as Secret) || ("change-me" as Secret);
+/** Assina um JWT usando o segredo e opções do ENV */
+export function signJwt(
+  payload: { sub: string; email?: string } & Record<string, any>,
+  opts?: jwt.SignOptions
+): string {
+  // Monta opções sem forçar tipos no objeto literal (evita erro do expiresIn)
+  const baseOpts: jwt.SignOptions = {};
+  const exp = (ENV.TOKEN_EXPIRES_IN || "7d").trim();
+  if (exp) (baseOpts as any).expiresIn = exp; // <- compat com tipos do jsonwebtoken
+  if (ENV.JWT_ISSUER) baseOpts.issuer = ENV.JWT_ISSUER;
+  if (ENV.JWT_AUDIENCE) baseOpts.audience = ENV.JWT_AUDIENCE;
 
-/** Coage valor para string (não-vazia) ou undefined */
-function strOrUndef(v: any): string | undefined {
-  return typeof v === "string" && v.trim() ? v.trim() : undefined;
+  const sub = normalizeEmail(payload.sub);
+  const email = payload.email ? normalizeEmail(payload.email) : sub;
+
+  return jwt.sign({ ...payload, sub, email }, ENV.JWT_SECRET, {
+    ...baseOpts,
+    ...(opts || {}),
+  });
 }
 
-/** Tipagem estável para expiresIn entre versões */
-type ExpiresType = string | number;
-
-/** Normaliza expiresIn */
-function resolveExpiresIn(v?: unknown): ExpiresType | undefined {
-  if (v === undefined || v === null) return undefined;
-  if (typeof v === "number") return v;
-  if (typeof v === "string" && v.trim()) return v.trim();
-  return undefined;
-}
-
-/** Assina JWT com defaults seguros (HS256 + expiração 7d) */
-export function signJwt(payload: AuthTokenPayload, expiresIn?: string | number) {
-  const exp = resolveExpiresIn(expiresIn ?? ENV.TOKEN_EXPIRES_IN ?? "7d");
-
-  // Monta options **sem** issuer/audience inicialmente
-  const options: SignOptions = {
-    algorithm: "HS256",
-  };
-
-  if (exp !== undefined) (options as any).expiresIn = exp;
-
-  // ⚠️ Só adiciona as chaves se forem strings válidas
-  const iss = strOrUndef((ENV as any).JWT_ISSUER);
-  if (iss) (options as any).issuer = iss;
-
-  const aud = strOrUndef((ENV as any).JWT_AUDIENCE);
-  if (aud) (options as any).audience = aud;
-
-  return jwt.sign(payload, SECRET, options);
-}
-
-/** Verifica/decodifica JWT aplicando políticas (algoritmo/issuer/audience) */
+/** Verifica um JWT e retorna o payload normalizado */
 export function verifyJwt(token: string): AuthTokenPayload {
-  const options: VerifyOptions = {
-    algorithms: ["HS256"],
-    clockTolerance: 5,
-  };
+  const vopts: jwt.VerifyOptions = {};
+  if (ENV.JWT_ISSUER) vopts.issuer = ENV.JWT_ISSUER;
+  if (ENV.JWT_AUDIENCE) vopts.audience = ENV.JWT_AUDIENCE;
 
-  const iss = strOrUndef((ENV as any).JWT_ISSUER);
-  if (iss) (options as any).issuer = iss;
+  const decoded = jwt.verify(token, ENV.JWT_SECRET, vopts);
+  const raw: JwtPayload =
+    typeof decoded === "string" ? ({ sub: decoded } as any) : (decoded as JwtPayload);
 
-  const aud = strOrUndef((ENV as any).JWT_AUDIENCE);
-  if (aud) (options as any).audience = aud;
+  const sub = normalizeEmail((raw as any).sub || (raw as any).email);
+  const email = normalizeEmail((raw as any).email || sub);
 
-  return jwt.verify(token, SECRET, options) as AuthTokenPayload;
+  return { ...(raw as object), sub, email } as AuthTokenPayload;
 }
 
-/** Middleware: exige Authorization: Bearer <token> */
+/** Middleware: exige Bearer token válido e injeta req.user */
 export function authRequired(req: Request, res: Response, next: NextFunction) {
-  const header = req.header("authorization");
-  if (!header?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "missing_token" });
-  }
-  const token = header.slice(7).trim();
-
   try {
-    const decoded = verifyJwt(token);
-    (req as any).user = decoded;
-    return next();
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+
+    if (!token) return res.status(401).json({ error: "missing_token" });
+
+    const payload = verifyJwt(token);
+    if (!payload?.sub) return res.status(401).json({ error: "invalid_token_no_sub" });
+
+    (req as any).user = payload; // { sub, email, iat, exp, ... }
+    next();
   } catch (err: any) {
-    const error = err?.name === "TokenExpiredError" ? "token_expired" : "invalid_token";
-    return res.status(401).json({ error });
+    return res.status(401).json({ error: "invalid_token", detail: err?.message });
   }
 }
