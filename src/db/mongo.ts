@@ -1,25 +1,22 @@
+// src/db/mongo.ts
 import { MongoClient, Db, Collection, ObjectId } from "mongodb";
 import { ENV } from "../env";
 
-/* -------------------------------------------------------
-   Conexão (singleton)
--------------------------------------------------------- */
 let client: MongoClient | null = null;
 let db: Db | null = null;
+let connecting: Promise<Db> | null = null;
 
-/* -------------------------------------------------------
-   Tipos base das coleções
--------------------------------------------------------- */
+/* ================== Tipos ================== */
 export type UserDoc = {
-  _id: ObjectId;
+  _id?: ObjectId;                // opcional para insertOne sem _id
   name: string;
-  email: string;          // normalizado
+  email: string;                 // normalizado
   passwordHash: string;
   createdAt: Date;
 };
 
 export type ProductDoc = {
-  _id: ObjectId;
+  _id?: ObjectId;
   title: string;
   slug: string;
   description?: string;
@@ -31,48 +28,73 @@ export type ProductDoc = {
 };
 
 export type GrantDoc = {
-  _id: ObjectId;
-  email: string;          // normalizado
+  _id?: ObjectId;
+  email: string;                 // normalizado
   productId: ObjectId;
   createdAt: Date;
   expiresAt?: Date;
 };
 
-/* -------------------------------------------------------
-   Helpers
--------------------------------------------------------- */
+/* ================== Utils ================== */
 export function oid(id: string): ObjectId {
   return new ObjectId(id);
 }
 
-/** Abre (ou reaproveita) a conexão e garante índices */
+function dbNameFromUri(uri: string): string | null {
+  try {
+    const u = new URL(uri);
+    const name = (u.pathname || "").replace(/^\//, "");
+    return name || null; // ex.: .../myglobyx -> "myglobyx"
+  } catch {
+    return null;
+  }
+}
+
+/* ================== Conexão ================== */
 export async function getDb(): Promise<Db> {
   if (db) return db;
+  if (connecting) return connecting;
   if (!ENV.MONGODB_URI) throw new Error("MONGODB_URI not set");
 
-  client = new MongoClient(ENV.MONGODB_URI);
-  await client.connect();
+  connecting = (async () => {
+    client = new MongoClient(ENV.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 10,
+    });
+    await client.connect();
 
-  db = client.db(ENV.MONGO_DB_NAME);
-  await ensureIndexes(db);
-  return db;
+    const name =
+      dbNameFromUri(ENV.MONGODB_URI) ||
+      (process.env.MONGO_DB_NAME || "").trim() ||
+      "myglobyx";
+
+    const database = client.db(name);
+    db = database;
+
+    console.log(`✅ Mongo conectado em "${database.databaseName}"`);
+    await ensureIndexes(database);
+
+    connecting = null;
+    return database;
+  })();
+
+  return connecting;
 }
 
-/** Índices obrigatórios/únicos */
+/* ================== Índices ================== */
 async function ensureIndexes(_db: Db) {
-  await _db.collection<UserDoc>("users")
-    .createIndex({ email: 1 }, { unique: true });
-
-  await _db.collection<ProductDoc>("products")
-    .createIndex({ slug: 1 }, { unique: true });
-
-  await _db.collection<GrantDoc>("grants")
-    .createIndex({ email: 1, productId: 1 }, { unique: true });
+  try {
+    await _db.collection<UserDoc>("users").createIndex({ email: 1 }, { unique: true });
+    await _db.collection<ProductDoc>("products").createIndex({ slug: 1 }, { unique: true });
+    await _db
+      .collection<GrantDoc>("grants")
+      .createIndex({ email: 1, productId: 1 }, { unique: true });
+  } catch (err) {
+    console.error("⚠️ Erro ao criar índices:", err);
+  }
 }
 
-/* -------------------------------------------------------
-   Acesso às coleções tipadas
--------------------------------------------------------- */
+/* ================== Coleções ================== */
 export async function usersCol(): Promise<Collection<UserDoc>> {
   const database = await getDb();
   return database.collection<UserDoc>("users");

@@ -3,27 +3,31 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { usersCol, UserDoc } from "./mongo";
+import { ENV } from "../env";
 
-const ROUNDS = Number(process.env.BCRYPT_ROUNDS || process.env.BCRYPT_SALT_ROUNDS || 10);
+/* ========= ENV / CONST ========= */
+const ROUNDS = Number(ENV.BCRYPT_ROUNDS || 10);
 const TOKEN_TTL_MINUTES = Number(process.env.EMAIL_TOKEN_TTL_MINUTES || 60);
-const API_PUBLIC_URL = process.env.API_PUBLIC_URL || "http://localhost:4000";
-const EMAIL_FROM = process.env.EMAIL_FROM || "MyGlobyX <no-reply@myglobyx.com>";
+const API_PUBLIC_URL = (process.env.API_PUBLIC_URL || "http://localhost:5000").trim();
+const EMAIL_FROM = (process.env.EMAIL_FROM || "MyGlobyX <no-reply@myglobyx.com>").trim();
 
+/* ========= Utils ========= */
 function norm(email: string) {
-  return email.trim().toLowerCase();
+  return String(email || "").trim().toLowerCase();
 }
-
-/** Monta link GET de verificação que sua rota /api/auth/verify deve tratar */
 function makeVerifyLink(token: string) {
-  return `${API_PUBLIC_URL}/api/auth/verify?token=${encodeURIComponent(token)}`;
+  return `${API_PUBLIC_URL}${ENV.API_PREFIX || "/api"}/auth/verify?token=${encodeURIComponent(
+    token
+  )}`;
 }
 
 /** Transport condicional: se SMTP_* não estiver setado, vira dry-run (só console.log) */
 function getMailer() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env as Record<string, string | undefined>;
-  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
-    return null; // dry-run
-  }
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env as Record<
+    string,
+    string | undefined
+  >;
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) return null; // dry-run
   return nodemailer.createTransport({
     host: SMTP_HOST,
     port: Number(SMTP_PORT),
@@ -53,25 +57,20 @@ async function sendWelcomeVerificationEmail(to: string, verifyLink: string, name
   `;
 
   if (!transporter) {
-    // Dry-run
-    // eslint-disable-next-line no-console
     console.log("📧 [DEV] E-mail (dry-run) para:", to);
-    // eslint-disable-next-line no-console
     console.log("Assunto:", subject);
-    // eslint-disable-next-line no-console
     console.log("🔗 Link de verificação:", verifyLink);
     return;
   }
 
-  await transporter.sendMail({
-    from: EMAIL_FROM,
-    to,
-    subject,
-    html,
-  });
+  try {
+    await transporter.sendMail({ from: EMAIL_FROM, to, subject, html });
+  } catch (err) {
+    console.error("⚠️ Falha ao enviar e-mail:", (err as Error)?.message);
+  }
 }
 
-/** ✅ (Opcional) Cria índices importantes. Chame 1x no boot do app. */
+/* ========= Indexes ========= */
 export async function initializeUserIndexes(): Promise<void> {
   const col = await usersCol();
   try {
@@ -84,16 +83,20 @@ export async function initializeUserIndexes(): Promise<void> {
     await col.createIndex({ isVerified: 1 }, { name: "by_isVerified" });
   } catch {}
   try {
-    await col.createIndex({ verificationToken: 1, verificationExpires: 1 }, { name: "by_verify_token" });
+    await col.createIndex(
+      { verificationToken: 1, verificationExpires: 1 },
+      { name: "by_verify_token" }
+    );
   } catch {}
 }
 
-/** Busca usuário pelo e-mail (normalizado) */
+/* ========= Queries básicas ========= */
 export async function findUserByEmail(email: string): Promise<UserDoc | null> {
   const col = await usersCol();
-  return col.findOne({ email: norm(email) });
+  return col.findOne({ email: norm(email) } as any);
 }
 
+/* ========= Mutations ========= */
 /**
  * Cria usuário real:
  *  - salva hash
@@ -109,7 +112,7 @@ export async function createUser(
   const col = await usersCol();
   const emailNorm = norm(email);
 
-  const already = await col.findOne({ email: emailNorm });
+  const already = await col.findOne({ email: emailNorm } as any);
   if (already) {
     const err: any = new Error("email_in_use");
     err.code = "email_in_use";
@@ -122,7 +125,16 @@ export async function createUser(
   const verificationToken = crypto.randomBytes(32).toString("hex");
   const verificationExpires = new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000);
 
-  const doc = {
+  const doc: Omit<UserDoc, "_id"> & {
+    updatedAt?: Date;
+    isVerified?: boolean;
+    phone?: string;
+    verificationToken?: string;
+    verificationExpires?: Date;
+    birthdate?: string;
+    document?: string;
+    address?: any;
+  } = {
     name: name.trim(),
     email: emailNorm,
     passwordHash,
@@ -132,12 +144,11 @@ export async function createUser(
     verificationToken,
     verificationExpires,
     ...(phone ? { phone: String(phone).trim() } : {}),
-  } as Omit<UserDoc, "_id"> as any;
+  };
 
-  const res = await col.insertOne(doc);
-  const created: UserDoc = { _id: res.insertedId, ...doc } as UserDoc;
+  const res = await col.insertOne(doc as any);
+  const created: UserDoc = { _id: res.insertedId as any, ...doc } as UserDoc;
 
-  // Enviar e-mail (ou dry-run logando o link)
   const link = makeVerifyLink(verificationToken);
   await sendWelcomeVerificationEmail(created.email, link, created.name);
 
@@ -156,7 +167,7 @@ export async function upsertUserPassword(
   const now = new Date();
 
   await col.updateOne(
-    { email: emailNorm },
+    { email: emailNorm } as any,
     {
       $set: {
         name: name.trim(),
@@ -169,73 +180,76 @@ export async function upsertUserPassword(
     { upsert: true }
   );
 
-  const user = await col.findOne({ email: emailNorm });
+  const user = (await col.findOne({ email: emailNorm } as any)) as UserDoc | null;
   if (!user) throw new Error("upsert_failed");
   return user;
 }
 
-/** Atualiza somente o hash de senha */
-export async function setPasswordHash(email: string, passwordHash: string): Promise<void> {
+/** Atualiza somente a senha (gerando o hash) */
+export async function setPasswordHash(email: string, password: string): Promise<void> {
   const col = await usersCol();
+  const passwordHash = await bcrypt.hash(password, ROUNDS);
   await col.updateOne(
-    { email: norm(email) },
+    { email: norm(email) } as any,
     { $set: { passwordHash, updatedAt: new Date() } as any }
   );
 }
 
 /** Compara senha */
 export async function verifyPassword(user: UserDoc, password: string): Promise<boolean> {
-  return bcrypt.compare(password, user.passwordHash);
+  return bcrypt.compare(password, (user as any).passwordHash);
 }
 
-/** ✅ Define/atualiza telefone do usuário */
+/** Define/atualiza telefone */
 export async function setUserPhone(email: string, phone: string): Promise<void> {
   const col = await usersCol();
   await col.updateOne(
-    { email: norm(email) },
+    { email: norm(email) } as any,
     { $set: { phone: String(phone).trim(), updatedAt: new Date() } as any }
   );
 }
 
-/** Reemite token e reenvia e-mail de verificação (ex.: usuário pediu de novo) */
-export async function reissueVerification(email: string): Promise<{ sent: boolean; linkDev: string }> {
+/** Reemite token e reenvia e-mail de verificação */
+export async function reissueVerification(
+  email: string
+): Promise<{ sent: boolean; linkDev: string }> {
   const col = await usersCol();
   const emailNorm = norm(email);
-  const user = await col.findOne({ email: emailNorm });
+  const user = (await col.findOne({ email: emailNorm } as any)) as any;
   if (!user) throw new Error("user_not_found");
-  if ((user as any).isVerified) return { sent: false, linkDev: "" };
+  if (user.isVerified) return { sent: false, linkDev: "" };
 
   const verificationToken = crypto.randomBytes(32).toString("hex");
   const verificationExpires = new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000);
 
   await col.updateOne(
-    { _id: user._id },
+    { _id: user._id } as any,
     { $set: { verificationToken, verificationExpires, updatedAt: new Date() } as any }
   );
 
   const link = makeVerifyLink(verificationToken);
-  await sendWelcomeVerificationEmail(user.email, link, (user as any).name);
+  await sendWelcomeVerificationEmail(user.email, link, user.name);
 
   return { sent: true, linkDev: link };
 }
 
 /**
- * Confirma o usuário pelo token (usado pela rota GET /api/auth/verify)
+ * Confirma o usuário pelo token (GET /api/auth/verify?token=...)
  * Retorna true se confirmou, false se token inválido/expirado.
  */
 export async function verifyByToken(token: string): Promise<boolean> {
   const col = await usersCol();
   const now = new Date();
 
-  const user = await col.findOne({
+  const user = (await col.findOne({
     verificationToken: token,
     verificationExpires: { $gt: now },
-  });
+  } as any)) as any;
 
   if (!user) return false;
 
   await col.updateOne(
-    { _id: user._id },
+    { _id: user._id } as any,
     {
       $set: { isVerified: true, updatedAt: now } as any,
       $unset: { verificationToken: "", verificationExpires: "" } as any,
@@ -245,10 +259,61 @@ export async function verifyByToken(token: string): Promise<boolean> {
   return true;
 }
 
-/**
- * Listagem básica para o Painel Admin (paginada)
- * Mostra dados mínimos: nome, e-mail, telefone, verificado, datas.
- */
+/* ========= PATCH de Perfil ========= */
+export type AddressPatch = {
+  cep?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  district?: string;
+  city?: string;
+  state?: string;
+};
+
+export type ProfilePatch = {
+  name?: string;
+  phone?: string;
+  birthdate?: string;
+  document?: string;
+  address?: AddressPatch;
+};
+
+/** ✅ Atualiza dados do perfil e retorna o doc atualizado (ou null se não existir) */
+export async function updateUserProfile(
+  email: string,
+  patch: ProfilePatch
+): Promise<UserDoc | null> {
+  const col = await usersCol();
+  const emailNorm = norm(email);
+
+  const user = (await col.findOne({ email: emailNorm } as any)) as any;
+  if (!user) return null;
+
+  const now = new Date();
+  const $set: any = { updatedAt: now };
+
+  if (patch.name !== undefined)      $set.name = String(patch.name).trim();
+  if (patch.phone !== undefined)     $set.phone = String(patch.phone).trim();
+  if (patch.birthdate !== undefined) $set.birthdate = String(patch.birthdate).trim();
+  if (patch.document !== undefined)  $set.document = String(patch.document).trim();
+
+  if (patch.address !== undefined) {
+    const prevAddr = (user as any).address || {};
+    const nextAddr: any = { ...prevAddr, ...patch.address };
+    if (nextAddr.state) nextAddr.state = String(nextAddr.state).trim().toUpperCase();
+    $set.address = nextAddr;
+  }
+
+  await col.updateOne({ _id: user._id } as any, { $set });
+  const updated = (await col.findOne(
+    { _id: user._id } as any,
+    { projection: { passwordHash: 0 } as any }
+  )) as UserDoc | null;
+
+  return updated;
+}
+
+/* ========= Listagem para Admin ========= */
 export async function listUsersBasic(
   page = 1,
   limit = 25
@@ -279,13 +344,13 @@ export async function listUsersBasic(
       .toArray(),
   ]);
 
-  const users = docs.map((d) => ({
+  const users = docs.map((d: any) => ({
     name: d.name,
     email: d.email,
-    phone: (d as any).phone,
-    isVerified: (d as any).isVerified,
+    phone: d.phone,
+    isVerified: d.isVerified,
     createdAt: d.createdAt,
-    updatedAt: (d as any).updatedAt,
+    updatedAt: d.updatedAt,
   }));
 
   return { total, users };

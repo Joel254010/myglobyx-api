@@ -1,67 +1,93 @@
 // src/routes/profile.ts
-import { Router, Request, Response } from "express";
-import { authRequired, AuthTokenPayload } from "../middlewares/authJwt";
+import { Router } from "express";
 import { z } from "zod";
-import { getProfileByEmail, upsertProfile } from "../db/profilesStore";
-import { findUserByEmail } from "../db/usersStore"; // só para tentar pré-preencher o nome
+import { authRequired, AuthTokenPayload } from "../middlewares/authJwt";
+import { findUserByEmail, updateUserProfile } from "../db/usersStore";
 
 const router = Router();
 
-const profileSchema = z.object({
-  name: z.string().min(2).max(60),
-  phone: z.string().trim().max(20).optional(),
-  birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  document: z.string().trim().min(11).max(14).optional(),
-  address: z.object({
-    cep: z.string().trim().max(9).optional(),
-    street: z.string().trim().max(100).optional(),
-    number: z.string().trim().max(10).optional(),
-    complement: z.string().trim().max(60).optional(),
-    district: z.string().trim().max(60).optional(),
-    city: z.string().trim().max(60).optional(),
-    state: z.string().trim().max(2).optional(),
-  }).partial().optional(),
+/** Schemas de validação */
+const addressSchema = z
+  .object({
+    cep: z.string().trim().min(1).optional(),
+    street: z.string().trim().min(1).optional(),
+    number: z.string().trim().min(1).optional(),
+    complement: z.string().trim().optional(),
+    district: z.string().trim().optional(),
+    city: z.string().trim().optional(),
+    state: z.string().trim().optional(),
+  })
+  .partial();
+
+const profilePatchSchema = z.object({
+  name: z.string().trim().min(2).max(80).optional(),
+  phone: z.string().trim().min(8).max(20).optional(),
+  birthdate: z.string().trim().optional(), // manter string por enquanto
+  document: z.string().trim().optional(),
+  address: addressSchema.optional(),
 });
 
-function emailFromReq(req: Request) {
-  const payload = (req as any).user as AuthTokenPayload;
-  return String(payload?.sub || "").toLowerCase();
+/** Helper para extrair email do JWT */
+function emailFromReq(req: any): string | null {
+  const userJwt = req.user as AuthTokenPayload | undefined;
+  const email = (userJwt?.email || userJwt?.sub || "").toString().toLowerCase().trim();
+  return email || null;
 }
 
-/* GET /api/profile/me */
-router.get("/api/profile/me", authRequired, async (req: Request, res: Response) => {
+/** ===== GET /profile/me ===== */
+router.get("/profile/me", authRequired, async (req, res) => {
   const email = emailFromReq(req);
+  if (!email) return res.status(401).json({ error: "unauthenticated" });
 
-  // 1) tenta no Atlas
-  const dbProfile = await getProfileByEmail(email);
-  if (dbProfile) return res.json({ profile: dbProfile });
+  const dbUser = await findUserByEmail(email);
+  if (!dbUser) return res.status(404).json({ error: "user_not_found" });
 
-  // 2) se não existe, tenta pegar o nome do "users" (se existir) só para preencher
-  let name = "";
-  try {
-    const u = await findUserByEmail(email);
-    name = u?.name ?? "";
-  } catch {
-    // silencioso
-  }
+  const profile = {
+    name: (dbUser as any).name,
+    email: dbUser.email,
+    phone: (dbUser as any).phone,
+    birthdate: (dbUser as any).birthdate,
+    document: (dbUser as any).document,
+    address: (dbUser as any).address,
+    isVerified: (dbUser as any).isVerified,
+    createdAt: dbUser.createdAt,
+    updatedAt: (dbUser as any).updatedAt,
+  };
 
-  return res.json({ profile: { email, name } });
+  return res.json({ profile });
 });
 
-/* PUT /api/profile/me */
-router.put("/api/profile/me", authRequired, async (req: Request, res: Response) => {
+/** ===== PUT /profile/me ===== */
+router.put("/profile/me", authRequired, async (req, res) => {
   const email = emailFromReq(req);
+  if (!email) return res.status(401).json({ error: "unauthenticated" });
 
-  const parsed = profileSchema.safeParse(req.body);
+  const parsed = profilePatchSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
-    return res.status(400).json({
-      error: "validation_error",
-      issues: parsed.error.flatten(),
-    });
+    return res.status(400).json({ error: "invalid_payload", details: parsed.error.flatten() });
   }
 
-  const updated = await upsertProfile(email, parsed.data);
-  return res.json({ profile: updated });
+  const patch = parsed.data as any;
+
+  // Normalização leve
+  if (patch.phone) patch.phone = String(patch.phone).replace(/\D/g, "");
+
+  const updated = await updateUserProfile(email, patch);
+  if (!updated) return res.status(404).json({ error: "user_not_found" });
+
+  const profile = {
+    name: (updated as any).name,
+    email: updated.email,
+    phone: (updated as any).phone,
+    birthdate: (updated as any).birthdate,
+    document: (updated as any).document,
+    address: (updated as any).address,
+    isVerified: (updated as any).isVerified,
+    createdAt: updated.createdAt,
+    updatedAt: (updated as any).updatedAt,
+  };
+
+  return res.json({ profile });
 });
 
 export default router;
