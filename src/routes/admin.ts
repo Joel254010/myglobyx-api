@@ -33,17 +33,15 @@ router.get("/__alive", (_req: Request, res: Response) => {
 router.get("/__routes", (_req: Request, res: Response) => {
   res.json({
     routes: [
-      "GET   /__alive           (no auth)",
-      "GET   /__routes          (no auth)",
-      "GET   /ping              (auth admin)",
-      "GET   /users             (auth admin)",
-      "GET   /products          (auth admin)",
-      "POST  /products          (auth admin)",
-      "PUT   /products/:id      (auth admin)",
-      "DELETE /products/:id     (auth admin)",
-      "GET   /grants            (auth admin)",
-      "POST  /grants            (auth admin)",
-      "DELETE /grants           (auth admin)"
+      "GET/POST /ping            (auth admin)",
+      "GET       /users          (auth admin)",
+      "GET       /products       (auth admin)",
+      "POST      /products       (auth admin)",
+      "PUT       /products/:id   (auth admin)",
+      "DELETE    /products/:id   (auth admin)",
+      "GET       /grants         (auth admin)",
+      "POST      /grants         (auth admin)",
+      "DELETE    /grants         (auth admin)"
     ],
   });
 });
@@ -51,12 +49,13 @@ router.get("/__routes", (_req: Request, res: Response) => {
 /** ===== A partir daqui exige auth/admin ===== */
 router.use(authRequired, adminOnly);
 
-/** sanity / ping */
-router.get("/ping", (req: Request, res: Response) => {
-  const email =
-    (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
+/** sanity / ping — aceita GET **e** POST (compat com o frontend) */
+const pingHandler = (req: Request, res: Response) => {
+  const email = (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
   return res.json({ ok: true, isAdmin: true, roles: ["admin"], email });
-});
+};
+router.get("/ping", pingHandler);
+router.post("/ping", pingHandler);
 
 /* ============ Usuários (lista básica) ============ */
 router.get("/users", async (req, res) => {
@@ -168,3 +167,4 @@ router.delete("/grants", async (req, res) => {
 });
 
 export default router;
+
