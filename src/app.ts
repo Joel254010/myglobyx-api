@@ -60,7 +60,7 @@ app.use(API, profileRoutes);
 app.use(API, bibliotecaRoutes);
 
 // ✅ Admin em /api/admin
-app.use(`${API}/admin`, adminRoutes);
+app.use(API, adminRoutes);
 
 // (Opcional) raiz mostra info rápida
 app.get("/", (_req, res) => {
