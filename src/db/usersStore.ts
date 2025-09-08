@@ -260,7 +260,7 @@ export async function verifyByToken(token: string): Promise<boolean> {
 }
 
 /* ========= PATCH de Perfil ========= */
-type AddressPatch = {
+export type AddressPatch = {
   cep?: string;
   street?: string;
   number?: string;
@@ -269,7 +269,8 @@ type AddressPatch = {
   city?: string;
   state?: string;
 };
-type ProfilePatch = {
+
+export type ProfilePatch = {
   name?: string;
   phone?: string;
   birthdate?: string;
@@ -291,19 +292,24 @@ export async function updateUserProfile(
   const now = new Date();
   const $set: any = { updatedAt: now };
 
-  if (patch.name !== undefined) $set.name = String(patch.name).trim();
-  if (patch.phone !== undefined) $set.phone = String(patch.phone).trim();
+  if (patch.name !== undefined)      $set.name = String(patch.name).trim();
+  if (patch.phone !== undefined)     $set.phone = String(patch.phone).trim();
   if (patch.birthdate !== undefined) $set.birthdate = String(patch.birthdate).trim();
-  if (patch.document !== undefined) $set.document = String(patch.document).trim();
+  if (patch.document !== undefined)  $set.document = String(patch.document).trim();
 
   if (patch.address !== undefined) {
-    // merge simples com o que já existe
     const prevAddr = (user as any).address || {};
-    $set.address = { ...prevAddr, ...patch.address };
+    const nextAddr: any = { ...prevAddr, ...patch.address };
+    if (nextAddr.state) nextAddr.state = String(nextAddr.state).trim().toUpperCase();
+    $set.address = nextAddr;
   }
 
   await col.updateOne({ _id: user._id } as any, { $set });
-  const updated = (await col.findOne({ _id: user._id } as any)) as UserDoc | null;
+  const updated = (await col.findOne(
+    { _id: user._id } as any,
+    { projection: { passwordHash: 0 } as any }
+  )) as UserDoc | null;
+
   return updated;
 }
 
