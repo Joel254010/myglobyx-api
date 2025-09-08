@@ -1,26 +1,26 @@
-// src/middlewares/authJwt.ts
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { ENV } from "../env";
 
 export type AuthTokenPayload = JwtPayload & {
-  sub: string;        // usamos o e-mail normalizado aqui
-  email?: string;     // redundante, também normalizado
+  sub: string;         // email principal
+  email?: string;      // redundância opcional
+  name?: string;       // nome do usuário
+  isAdmin?: boolean;   // flag de admin
 };
 
 function normalizeEmail(v: unknown): string {
   return String(v ?? "").trim().toLowerCase();
 }
 
-/** Assina um JWT usando o segredo e opções do ENV */
+/** 🔐 Assina um JWT usando configs do .env */
 export function signJwt(
   payload: { sub: string; email?: string } & Record<string, any>,
   opts?: jwt.SignOptions
 ): string {
-  // Monta opções sem forçar tipos no objeto literal (evita erro do expiresIn)
   const baseOpts: jwt.SignOptions = {};
   const exp = (ENV.TOKEN_EXPIRES_IN || "7d").trim();
-  if (exp) (baseOpts as any).expiresIn = exp; // <- compat com tipos do jsonwebtoken
+  if (exp) (baseOpts as any).expiresIn = exp;
   if (ENV.JWT_ISSUER) baseOpts.issuer = ENV.JWT_ISSUER;
   if (ENV.JWT_AUDIENCE) baseOpts.audience = ENV.JWT_AUDIENCE;
 
@@ -33,7 +33,7 @@ export function signJwt(
   });
 }
 
-/** Verifica um JWT e retorna o payload normalizado */
+/** 🔍 Verifica o token JWT e retorna payload */
 export function verifyJwt(token: string): AuthTokenPayload {
   const vopts: jwt.VerifyOptions = {};
   if (ENV.JWT_ISSUER) vopts.issuer = ENV.JWT_ISSUER;
@@ -49,7 +49,7 @@ export function verifyJwt(token: string): AuthTokenPayload {
   return { ...(raw as object), sub, email } as AuthTokenPayload;
 }
 
-/** Middleware: exige Bearer token válido e injeta req.user */
+/** ✅ Middleware que exige token JWT e injeta req.user */
 export function authRequired(req: Request, res: Response, next: NextFunction) {
   try {
     const header = req.headers.authorization || "";
@@ -60,7 +60,9 @@ export function authRequired(req: Request, res: Response, next: NextFunction) {
     const payload = verifyJwt(token);
     if (!payload?.sub) return res.status(401).json({ error: "invalid_token_no_sub" });
 
-    (req as any).user = payload; // { sub, email, iat, exp, ... }
+    // 🔽 injeta o payload completo (inclui isAdmin, name, etc.)
+    (req as any).user = payload;
+
     next();
   } catch (err: any) {
     return res.status(401).json({ error: "invalid_token", detail: err?.message });

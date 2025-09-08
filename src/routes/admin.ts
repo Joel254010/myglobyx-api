@@ -1,4 +1,3 @@
-// src/routes/admin.ts
 import { Router, Request, Response } from "express";
 import { authRequired } from "../middlewares/authJwt";
 import { adminOnly } from "../middlewares/adminOnly";
@@ -22,15 +21,12 @@ import { listUsersBasic } from "../db/usersStore";
 
 const router = Router();
 
-/**
- * ===== Diagnóstico rápido (sem auth) =====
- * Úteis para confirmar montagem do router. Remova depois se quiser.
- */
-router.get("/__alive", (_req: Request, res: Response) => {
+/** ===== Diagnóstico rápido (sem auth) ===== */
+router.get("/__alive", (_req, res) => {
   res.json({ ok: true, router: "admin", mountedAt: "/api/admin", ts: Date.now() });
 });
 
-router.get("/__routes", (_req: Request, res: Response) => {
+router.get("/__routes", (_req, res) => {
   res.json({
     routes: [
       "GET/POST /ping            (auth admin)",
@@ -46,18 +42,25 @@ router.get("/__routes", (_req: Request, res: Response) => {
   });
 });
 
-/** ===== A partir daqui exige auth/admin ===== */
+/** ===== A partir daqui exige login e permissão admin ===== */
 router.use(authRequired, adminOnly);
 
-/** sanity / ping — aceita GET **e** POST (compat com o frontend) */
+/** 🔐 Sanity check (ping) — usado pelo frontend para validar sessão admin */
 const pingHandler = (req: Request, res: Response) => {
-  const email = (req as any)?.user?.sub?.toString?.().toLowerCase?.() || undefined;
-  return res.json({ ok: true, isAdmin: true, roles: ["admin"], email });
+  const user = (req as any).user;
+  return res.json({
+    ok: true,
+    isAdmin: true,
+    email: user?.email,
+    name: user?.name,
+    createdAt: user?.createdAt,
+    roles: ["admin"],
+  });
 };
 router.get("/ping", pingHandler);
 router.post("/ping", pingHandler);
 
-/* ============ Usuários (lista básica) ============ */
+/** 👥 Lista de usuários */
 router.get("/users", async (req, res) => {
   try {
     const page = Math.max(parseInt(String(req.query.page ?? "1"), 10) || 1, 1);
@@ -71,7 +74,7 @@ router.get("/users", async (req, res) => {
   }
 });
 
-/* ============ Produtos ============ */
+/** 📦 Produtos */
 router.get("/products", async (_req, res) => {
   try {
     const items = await allProducts();
@@ -86,6 +89,7 @@ router.post("/products", async (req, res) => {
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "missing_title" });
   }
+
   try {
     const p = await createProduct({
       title: title.trim(),
@@ -96,8 +100,7 @@ router.post("/products", async (req, res) => {
     });
     return res.status(201).json({ product: p });
   } catch (err: any) {
-    const code = err?.message || "create_failed";
-    return res.status(400).json({ error: code });
+    return res.status(400).json({ error: err?.message || "create_failed" });
   }
 });
 
@@ -123,7 +126,7 @@ router.delete("/products/:id", async (req, res) => {
   }
 });
 
-/* ============ Grants ============ */
+/** 🛂 Grants (acessos a produtos) */
 router.get("/grants", async (req, res) => {
   try {
     const email = (req.query.email as string | undefined)?.trim();
@@ -167,4 +170,3 @@ router.delete("/grants", async (req, res) => {
 });
 
 export default router;
-

@@ -1,4 +1,3 @@
-// src/routes/auth.ts
 import { Router } from "express";
 import { signJwt, authRequired } from "../middlewares/authJwt";
 import {
@@ -13,8 +12,9 @@ import { ENV } from "../env";
 
 const router = Router();
 
+// 🔒 Lista de e-mails autorizados como admin
 function adminList(): string[] {
-  return String((ENV as any).ADMIN_EMAILS || "")
+  return String(ENV.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
@@ -23,7 +23,7 @@ function isAdmin(email: string) {
   return adminList().includes(String(email || "").toLowerCase());
 }
 
-/** Login */
+/** ======================== LOGIN ======================== */
 router.post("/auth/login", async (req, res) => {
   const { email, password } = req.body ?? {};
   if (!email || !password) {
@@ -36,12 +36,11 @@ router.post("/auth/login", async (req, res) => {
   const ok = await verifyPassword(user, String(password));
   if (!ok) return res.status(401).json({ error: "invalid_credentials" });
 
-  // ✅ gera o token (sem 2º argumento; usa default do ENV)
   const token = signJwt({
     sub: user.email,
     email: user.email,
     name: (user as any).name,
-    admin: isAdmin(user.email),
+    isAdmin: isAdmin(user.email),
   });
 
   return res.json({
@@ -49,7 +48,7 @@ router.post("/auth/login", async (req, res) => {
     user: {
       email: user.email,
       name: (user as any).name,
-      admin: isAdmin(user.email),
+      isAdmin: isAdmin(user.email),
       isVerified: (user as any).isVerified,
       createdAt: user.createdAt,
       updatedAt: (user as any).updatedAt,
@@ -57,7 +56,7 @@ router.post("/auth/login", async (req, res) => {
   });
 });
 
-/** Registro (envia e-mail de verificação; em dev entra em dry-run) */
+/** ======================== REGISTRO ======================== */
 router.post("/auth/register", async (req, res) => {
   const { name, email, password, phone } = req.body ?? {};
   if (!name || !email || !password) {
@@ -78,7 +77,7 @@ router.post("/auth/register", async (req, res) => {
   }
 });
 
-/** Reenviar verificação */
+/** ======================== REENVIAR VERIFICAÇÃO ======================== */
 router.post("/auth/resend", async (req, res) => {
   const { email } = req.body ?? {};
   if (!email) return res.status(400).json({ error: "missing_email" });
@@ -91,7 +90,7 @@ router.post("/auth/resend", async (req, res) => {
   }
 });
 
-/** Confirmar e-mail (GET /api/auth/verify?token=...) */
+/** ======================== CONFIRMAR VERIFICAÇÃO ======================== */
 router.get("/auth/verify", async (req, res) => {
   const token = String(req.query.token || "");
   if (!token) return res.status(400).json({ error: "missing_token" });
@@ -101,12 +100,12 @@ router.get("/auth/verify", async (req, res) => {
   return res.json({ ok: true });
 });
 
-/** Validar token atual (debug) */
+/** ======================== VALIDAR TOKEN ATUAL ======================== */
 router.get("/auth/validate", authRequired, (req, res) => {
   return res.json({ ok: true, user: (req as any).user });
 });
 
-/** Dev: seed/reset de admin via HTTP, protegido por SEED_KEY */
+/** ======================== DEV: SEED ADMIN VIA HTTP ======================== */
 router.post("/auth/dev/seed-admin", async (req, res) => {
   const key = String(process.env.SEED_KEY || "");
   if (!key || req.query.key !== key) return res.status(403).json({ error: "forbidden" });
