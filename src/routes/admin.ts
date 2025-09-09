@@ -37,7 +37,7 @@ router.get("/__routes", (_req, res) => {
       "DELETE    /products/:id   (auth admin)",
       "GET       /grants         (auth admin)",
       "POST      /grants         (auth admin)",
-      "DELETE    /grants         (auth admin)"
+      "DELETE    /grants         (auth admin)",
     ],
   });
 });
