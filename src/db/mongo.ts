@@ -109,3 +109,8 @@ export async function grantsCol(): Promise<Collection<GrantDoc>> {
   const database = await getDb();
   return database.collection<GrantDoc>("grants");
 }
+
+/** Compat: permite usar await connectToMongo() */
+export async function connectToMongo() {
+  await getDb();
+}

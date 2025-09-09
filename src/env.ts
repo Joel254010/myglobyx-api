@@ -26,15 +26,16 @@ export const ENV = {
   JWT_ISSUER: (process.env.JWT_ISSUER || "").trim(),
   JWT_AUDIENCE: (process.env.JWT_AUDIENCE || "").trim(),
 
-  // Admin
+  // Admin (SEED do admin via script)
+  ADMIN_NAME: (process.env.ADMIN_NAME || "Admin GlobyX").trim(),
+  ADMIN_EMAIL: (process.env.ADMIN_EMAIL || "").trim(),
+  ADMIN_PASSWORD: (process.env.ADMIN_PASSWORD || "").trim(),
   ADMIN_EMAILS: (process.env.ADMIN_EMAILS || "").trim(),
   ADMIN_SEED_PASSWORD: process.env.ADMIN_SEED_PASSWORD || "123456",
   AUTO_SEED_ADMIN: (process.env.AUTO_SEED_ADMIN || "true").trim(),
 
   // CORS
-  // Mantém compat: ainda expõe a string original...
   CORS_ORIGIN: (process.env.CORS_ORIGIN || "https://my-globyx.netlify.app").trim(),
-  // ...e adiciona um array pronto para uso
   CORS_ORIGINS: splitCsv(
     process.env.CORS_ORIGIN || "https://my-globyx.netlify.app,http://localhost:5173"
   ),
