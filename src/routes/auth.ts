@@ -24,7 +24,7 @@ function isAdmin(email: string) {
 }
 
 /** ======================== LOGIN ======================== */
-router.post("/auth/login", async (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password } = req.body ?? {};
   if (!email || !password) {
     return res.status(400).json({ error: "missing_credentials" });
@@ -57,7 +57,7 @@ router.post("/auth/login", async (req, res) => {
 });
 
 /** ======================== REGISTRO ======================== */
-router.post("/auth/register", async (req, res) => {
+router.post("/register", async (req, res) => {
   const { name, email, password, phone } = req.body ?? {};
   if (!name || !email || !password) {
     return res.status(400).json({ error: "missing_fields" });
@@ -78,7 +78,7 @@ router.post("/auth/register", async (req, res) => {
 });
 
 /** ======================== REENVIAR VERIFICAÇÃO ======================== */
-router.post("/auth/resend", async (req, res) => {
+router.post("/resend", async (req, res) => {
   const { email } = req.body ?? {};
   if (!email) return res.status(400).json({ error: "missing_email" });
 
@@ -91,7 +91,7 @@ router.post("/auth/resend", async (req, res) => {
 });
 
 /** ======================== CONFIRMAR VERIFICAÇÃO ======================== */
-router.get("/auth/verify", async (req, res) => {
+router.get("/verify", async (req, res) => {
   const token = String(req.query.token || "");
   if (!token) return res.status(400).json({ error: "missing_token" });
 
@@ -101,12 +101,12 @@ router.get("/auth/verify", async (req, res) => {
 });
 
 /** ======================== VALIDAR TOKEN ATUAL ======================== */
-router.get("/auth/validate", authRequired, (req, res) => {
+router.get("/validate", authRequired, (req, res) => {
   return res.json({ ok: true, user: (req as any).user });
 });
 
 /** ======================== DEV: SEED ADMIN VIA HTTP ======================== */
-router.post("/auth/dev/seed-admin", async (req, res) => {
+router.post("/dev/seed-admin", async (req, res) => {
   const key = String(process.env.SEED_KEY || "");
   if (!key || req.query.key !== key) return res.status(403).json({ error: "forbidden" });
 
