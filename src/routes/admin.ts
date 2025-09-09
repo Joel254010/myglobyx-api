@@ -1,4 +1,8 @@
 import { Router, Request, Response } from "express";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+
+import { ENV } from "../env";
 import { authRequired } from "../middlewares/authJwt";
 import { adminOnly } from "../middlewares/adminOnly";
 
@@ -17,11 +21,28 @@ import {
   allGrants,
 } from "../db/grantsStore";
 
-import { listUsersBasic } from "../db/usersStore";
+import { listUsersBasic, findUserByEmail } from "../db/usersStore";
 
 const router = Router();
 
-/** ===== Diagnóstico rápido (sem auth) ===== */
+/* -------------------- Helpers -------------------- */
+function parseAdminEmails(): Set<string> {
+  const list = (ENV.ADMIN_EMAILS || "admin@myglobyx.com")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(list);
+}
+const ADMIN_EMAILS = parseAdminEmails();
+
+function isAdminUser(u: any): boolean {
+  if (!u) return false;
+  if (u.isAdmin === true) return true;
+  const email = String(u.email || "").toLowerCase();
+  return ADMIN_EMAILS.has(email);
+}
+
+/* -------------------- Diagnóstico (sem auth) -------------------- */
 router.get("/__alive", (_req, res) => {
   res.json({ ok: true, router: "admin", mountedAt: "/api/admin", ts: Date.now() });
 });
@@ -29,6 +50,7 @@ router.get("/__alive", (_req, res) => {
 router.get("/__routes", (_req, res) => {
   res.json({
     routes: [
+      "POST     /login           (public)  ✅",
       "GET/POST /ping            (auth admin)",
       "GET       /users          (auth admin)",
       "GET       /products       (auth admin)",
@@ -42,7 +64,59 @@ router.get("/__routes", (_req, res) => {
   });
 });
 
-/** ===== A partir daqui exige login e permissão admin ===== */
+/* -------------------- LOGIN ADMIN (público) -------------------- */
+router.post("/login", async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ message: "E-mail e senha são obrigatórios." });
+    }
+
+    const user = await findUserByEmail(String(email).toLowerCase());
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ message: "Credenciais inválidas." });
+    }
+
+    if (!isAdminUser(user)) {
+      return res.status(401).json({ message: "Não autorizado (admin)." });
+    }
+
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ message: "Credenciais inválidas." });
+    }
+
+    // helper seguro para extrair o id como string
+const sub =
+  (user as any)?._id?.toString?.() ??
+  String(user.email);
+
+// token
+const token = jwt.sign(
+  {
+    sub,
+    email: user.email,
+    name: user.name || "Admin",
+    isAdmin: true,
+  },
+  ENV.JWT_SECRET || "devsecret",
+  { expiresIn: "7d" }
+);
+
+    return res.json({
+      token,
+      admin: {
+        email: user.email,
+        name: user.name || "Admin",
+        isAdmin: true,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ message: "login_failed", detail: err?.message });
+  }
+});
+
+/* --------- A partir daqui: exige login + permissão admin --------- */
 router.use(authRequired, adminOnly);
 
 /** 🔐 Sanity check (ping) — usado pelo frontend para validar sessão admin */
@@ -119,7 +193,7 @@ router.put("/products/:id", async (req, res) => {
 router.delete("/products/:id", async (req, res) => {
   try {
     const ok = await deleteProduct(req.params.id);
-    if (!ok) return res.status(404).json({ error: "product_not_found" });
+  if (!ok) return res.status(404).json({ error: "product_not_found" });
     return res.status(204).end();
   } catch (err: any) {
     return res.status(400).json({ error: "delete_failed", detail: err?.message });
