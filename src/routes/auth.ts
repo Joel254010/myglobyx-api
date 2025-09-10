@@ -1,3 +1,4 @@
+// src/routes/auth.ts
 import { Router } from "express";
 import { signJwt, authRequired } from "../middlewares/authJwt";
 import {
@@ -36,10 +37,13 @@ router.post("/login", async (req, res) => {
   const ok = await verifyPassword(user, String(password));
   if (!ok) return res.status(401).json({ error: "invalid_credentials" });
 
+  // garante que sempre tenha nome
+  const safeName = (user as any).name || "Usuário";
+
   const token = signJwt({
     sub: user.email,
     email: user.email,
-    name: (user as any).name,
+    name: safeName,
     isAdmin: isAdmin(user.email),
   });
 
@@ -47,7 +51,7 @@ router.post("/login", async (req, res) => {
     token,
     user: {
       email: user.email,
-      name: (user as any).name,
+      name: safeName,
       isAdmin: isAdmin(user.email),
       isVerified: (user as any).isVerified,
       createdAt: user.createdAt,
@@ -67,7 +71,7 @@ router.post("/register", async (req, res) => {
     const created = await createUser(String(name), String(email), String(password), phone);
     return res.status(201).json({
       ok: true,
-      user: { email: created.email, name: created.name },
+      user: { email: created.email, name: created.name || "Usuário" },
       notice:
         "Se SMTP não estiver configurado, o link de verificação aparece no log (dry-run).",
     });
@@ -102,7 +106,16 @@ router.get("/verify", async (req, res) => {
 
 /** ======================== VALIDAR TOKEN ATUAL ======================== */
 router.get("/validate", authRequired, (req, res) => {
-  return res.json({ ok: true, user: (req as any).user });
+  const u = (req as any).user || {};
+  return res.json({
+    ok: true,
+    user: {
+      email: u.email,
+      name: u.name || "Usuário",
+      isAdmin: u.isAdmin || false,
+      createdAt: u.createdAt,
+    },
+  });
 });
 
 /** ======================== DEV: SEED ADMIN VIA HTTP ======================== */
@@ -113,7 +126,10 @@ router.post("/dev/seed-admin", async (req, res) => {
   const email = String((req.body?.email || "").trim() || "admin@myglobyx.com");
   const password = String((req.body?.password || "").trim() || "123456");
   const user = await upsertUserPassword("Admin", email, password);
-  return res.json({ ok: true, user: { email: user.email, name: (user as any).name } });
+  return res.json({
+    ok: true,
+    user: { email: user.email, name: user.name || "Usuário" },
+  });
 });
 
 export default router;
