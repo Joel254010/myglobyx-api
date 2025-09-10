@@ -1,4 +1,3 @@
-// src/db/mongo.ts
 import { MongoClient, Db, Collection, ObjectId } from "mongodb";
 import { ENV } from "../env";
 
@@ -21,6 +20,9 @@ export type ProductDoc = {
   slug: string;
   description?: string;
   mediaUrl?: string;
+  thumbnail?: string;      // ✅ novo
+  categoria?: string;      // ✅ novo
+  subcategoria?: string;   // ✅ novo
   price?: number;
   active: boolean;
   createdAt: Date;

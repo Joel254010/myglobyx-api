@@ -159,7 +159,7 @@ router.get("/products", async (_req, res) => {
 });
 
 router.post("/products", async (req, res) => {
-  const { title, description, mediaUrl, price, active } = req.body ?? {};
+  const { title, description, mediaUrl, thumbnail, categoria, subcategoria, price, active } = req.body ?? {};
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "missing_title" });
   }
@@ -169,6 +169,9 @@ router.post("/products", async (req, res) => {
       title: title.trim(),
       description,
       mediaUrl,
+      thumbnail,      // ✅ novo
+      categoria,      // ✅ novo
+      subcategoria,   // ✅ novo
       price: Number.isFinite(Number(price)) ? Number(price) : undefined,
       active: Boolean(active),
     });
@@ -193,7 +196,7 @@ router.put("/products/:id", async (req, res) => {
 router.delete("/products/:id", async (req, res) => {
   try {
     const ok = await deleteProduct(req.params.id);
-  if (!ok) return res.status(404).json({ error: "product_not_found" });
+    if (!ok) return res.status(404).json({ error: "product_not_found" });
     return res.status(204).end();
   } catch (err: any) {
     return res.status(400).json({ error: "delete_failed", detail: err?.message });

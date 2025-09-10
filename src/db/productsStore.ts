@@ -22,6 +22,9 @@ export type Product = {
   slug: string;
   description?: string;
   mediaUrl?: string;
+  thumbnail?: string;      // ✅ novo
+  categoria?: string;      // ✅ novo
+  subcategoria?: string;   // ✅ novo
   price?: number;
   active: boolean;
   createdAt: string;   // ISO
@@ -35,6 +38,9 @@ function toApi(p: WithId<ProductDoc>): Product {
     slug: p.slug,
     description: p.description,
     mediaUrl: p.mediaUrl,
+    thumbnail: p.thumbnail,          // ✅ novo
+    categoria: p.categoria,          // ✅ novo
+    subcategoria: p.subcategoria,    // ✅ novo
     price: p.price,
     active: p.active,
     createdAt: p.createdAt.toISOString(),
@@ -85,6 +91,9 @@ export async function createProduct(payload: {
   title: string;
   description?: string;
   mediaUrl?: string;
+  thumbnail?: string;
+  categoria?: string;
+  subcategoria?: string;
   price?: number;
   active?: boolean;
 }): Promise<Product> {
@@ -102,6 +111,9 @@ export async function createProduct(payload: {
     slug,
     description: payload.description?.trim() || undefined,
     mediaUrl: payload.mediaUrl?.trim() || undefined,
+    thumbnail: payload.thumbnail?.trim() || undefined,       // ✅ novo
+    categoria: payload.categoria?.trim() || undefined,       // ✅ novo
+    subcategoria: payload.subcategoria?.trim() || undefined, // ✅ novo
     price:
       typeof payload.price === "number" && Number.isFinite(payload.price)
         ? payload.price
@@ -124,6 +136,9 @@ export async function updateProduct(
     title: string;
     description?: string;
     mediaUrl?: string;
+    thumbnail?: string;
+    categoria?: string;
+    subcategoria?: string;
     price?: number;
     active?: boolean;
   }>
@@ -143,6 +158,15 @@ export async function updateProduct(
   }
   if (patch.mediaUrl !== undefined) {
     sets.mediaUrl = patch.mediaUrl?.trim() || undefined;
+  }
+  if (patch.thumbnail !== undefined) {
+    sets.thumbnail = patch.thumbnail?.trim() || undefined;   // ✅ novo
+  }
+  if (patch.categoria !== undefined) {
+    sets.categoria = patch.categoria?.trim() || undefined;   // ✅ novo
+  }
+  if (patch.subcategoria !== undefined) {
+    sets.subcategoria = patch.subcategoria?.trim() || undefined; // ✅ novo
   }
   if (patch.price !== undefined) {
     sets.price =
