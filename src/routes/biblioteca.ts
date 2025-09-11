@@ -15,7 +15,7 @@ router.get("/api/public/products", async (_req: Request, res: Response) => {
 
 /** Produtos liberados para o usuário logado */
 router.get("/api/me/products", authRequired, async (req: Request, res: Response) => {
-  const email = (req as any)?.user?.sub?.toString?.().toLowerCase?.() ?? "";
+  const email = (req as any)?.user?.email ?? "";
   const grants = await grantsForEmail(email);
   const allow = new Set(grants.map(g => g.productId));
 
