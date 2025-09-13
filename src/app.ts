@@ -20,7 +20,6 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
 
 // ✅ Health check do Render (SEM prefixo)
-//    Adiciona CORS p/ sumir o aviso no console do front.
 app.get("/health", (_req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.status(200).json({
@@ -31,19 +30,32 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// CORS (múltiplas origens separadas por vírgula)
-const origins = (ENV.CORS_ORIGIN || "")
+// ==================
+// 🔐 CORS revisado
+// ==================
+const defaultOrigins = [
+  "http://localhost:5173",    // dev local
+  "https://myglobyx.com",     // domínio oficial
+  "https://www.myglobyx.com", // com www
+];
+
+const envOrigins = (ENV.CORS_ORIGIN || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 
 const corsOptions: CorsOptions = {
-  origin: origins.length ? origins : true, // true = libera tudo (útil em dev)
+  origin: [...defaultOrigins, ...envOrigins],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 };
+
 app.use(cors(corsOptions));
 
-// Rate limit (v7 usa 'limit', não 'max')
+// ==================
+// 🔒 Rate limit
+// ==================
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -53,18 +65,17 @@ app.use(
   })
 );
 
-// Prefixo da API (sem barra final)
+// ==================
+// 📌 Rotas
+// ==================
 const API = (ENV.API_PREFIX || "/api").replace(/\/+$/, "");
 
-// ✅ Monte os routers que já definem /auth/*, /profile/*, /biblioteca/* sob o prefixo base
 app.use(API, authRoutes);
 app.use(API, profileRoutes);
 app.use(API, bibliotecaRoutes);
-
-// ✅ Admin em /api/admin (rotas internas NÃO têm /admin)
 app.use(`${API}/admin`, adminRoutes);
 
-// (Opcional) raiz mostra info rápida
+// ✅ Raiz
 app.get("/", (_req, res) => {
   res.json({ ok: true, health: "/health", apiBase: API });
 });
