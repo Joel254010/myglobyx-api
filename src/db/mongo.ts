@@ -7,9 +7,9 @@ let connecting: Promise<Db> | null = null;
 
 /* ================== Tipos ================== */
 export type UserDoc = {
-  _id?: ObjectId;                // opcional para insertOne sem _id
+  _id?: ObjectId;
   name: string;
-  email: string;                 // normalizado
+  email: string;
   passwordHash: string;
   createdAt: Date;
 };
@@ -23,6 +23,7 @@ export type ProductDoc = {
   thumbnail?: string;      // ✅ novo
   categoria?: string;      // ✅ novo
   subcategoria?: string;   // ✅ novo
+  landingPageUrl?: string; // ✅ adicionado agora
   price?: number;
   active: boolean;
   createdAt: Date;
@@ -31,7 +32,7 @@ export type ProductDoc = {
 
 export type GrantDoc = {
   _id?: ObjectId;
-  email: string;                 // normalizado
+  email: string;
   productId: ObjectId;
   createdAt: Date;
   expiresAt?: Date;
@@ -46,7 +47,7 @@ function dbNameFromUri(uri: string): string | null {
   try {
     const u = new URL(uri);
     const name = (u.pathname || "").replace(/^\//, "");
-    return name || null; // ex.: .../myglobyx -> "myglobyx"
+    return name || null;
   } catch {
     return null;
   }

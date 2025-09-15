@@ -22,13 +22,14 @@ export type Product = {
   slug: string;
   description?: string;
   mediaUrl?: string;
-  thumbnail?: string;      // ✅ novo
-  categoria?: string;      // ✅ novo
-  subcategoria?: string;   // ✅ novo
+  thumbnail?: string;
+  categoria?: string;
+  subcategoria?: string;
   price?: number;
+  landingPageUrl?: string; // ✅ novo
   active: boolean;
-  createdAt: string;   // ISO
-  updatedAt?: string;  // ISO
+  createdAt: string;
+  updatedAt?: string;
 };
 
 function toApi(p: WithId<ProductDoc>): Product {
@@ -38,10 +39,11 @@ function toApi(p: WithId<ProductDoc>): Product {
     slug: p.slug,
     description: p.description,
     mediaUrl: p.mediaUrl,
-    thumbnail: p.thumbnail,          // ✅ novo
-    categoria: p.categoria,          // ✅ novo
-    subcategoria: p.subcategoria,    // ✅ novo
+    thumbnail: p.thumbnail,
+    categoria: p.categoria,
+    subcategoria: p.subcategoria,
     price: p.price,
+    landingPageUrl: p.landingPageUrl, // ✅ novo
     active: p.active,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt ? p.updatedAt.toISOString() : undefined,
@@ -59,7 +61,6 @@ async function uniqueSlug(
   let candidate = root;
   let i = 2;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const exists = await col.findOne({
       slug: candidate,
@@ -72,21 +73,18 @@ async function uniqueSlug(
 
 /** ===== CRUD ===== */
 
-/** Lista todos os produtos (admin) */
 export async function allProducts(): Promise<Product[]> {
   const col = await productsCol();
   const rows = await col.find({}).sort({ createdAt: -1 }).toArray();
   return rows.map(toApi);
 }
 
-/** Busca por id */
 export async function findProductById(id: string): Promise<Product | null> {
   const col = await productsCol();
   const doc = await col.findOne({ _id: oid(id) });
   return doc ? toApi(doc) : null;
 }
 
-/** Cria produto */
 export async function createProduct(payload: {
   title: string;
   description?: string;
@@ -94,6 +92,7 @@ export async function createProduct(payload: {
   thumbnail?: string;
   categoria?: string;
   subcategoria?: string;
+  landingPageUrl?: string; // ✅ novo
   price?: number;
   active?: boolean;
 }): Promise<Product> {
@@ -111,9 +110,10 @@ export async function createProduct(payload: {
     slug,
     description: payload.description?.trim() || undefined,
     mediaUrl: payload.mediaUrl?.trim() || undefined,
-    thumbnail: payload.thumbnail?.trim() || undefined,       // ✅ novo
-    categoria: payload.categoria?.trim() || undefined,       // ✅ novo
-    subcategoria: payload.subcategoria?.trim() || undefined, // ✅ novo
+    thumbnail: payload.thumbnail?.trim() || undefined,
+    categoria: payload.categoria?.trim() || undefined,
+    subcategoria: payload.subcategoria?.trim() || undefined,
+    landingPageUrl: payload.landingPageUrl?.trim() || undefined, // ✅ novo
     price:
       typeof payload.price === "number" && Number.isFinite(payload.price)
         ? payload.price
@@ -129,7 +129,6 @@ export async function createProduct(payload: {
   return toApi(saved);
 }
 
-/** Atualiza produto (patch parcial; se mudar title, atualiza slug único) */
 export async function updateProduct(
   id: string,
   patch: Partial<{
@@ -139,6 +138,7 @@ export async function updateProduct(
     thumbnail?: string;
     categoria?: string;
     subcategoria?: string;
+    landingPageUrl?: string; // ✅ novo
     price?: number;
     active?: boolean;
   }>
@@ -160,13 +160,16 @@ export async function updateProduct(
     sets.mediaUrl = patch.mediaUrl?.trim() || undefined;
   }
   if (patch.thumbnail !== undefined) {
-    sets.thumbnail = patch.thumbnail?.trim() || undefined;   // ✅ novo
+    sets.thumbnail = patch.thumbnail?.trim() || undefined;
   }
   if (patch.categoria !== undefined) {
-    sets.categoria = patch.categoria?.trim() || undefined;   // ✅ novo
+    sets.categoria = patch.categoria?.trim() || undefined;
   }
   if (patch.subcategoria !== undefined) {
-    sets.subcategoria = patch.subcategoria?.trim() || undefined; // ✅ novo
+    sets.subcategoria = patch.subcategoria?.trim() || undefined;
+  }
+  if (patch.landingPageUrl !== undefined) {
+    sets.landingPageUrl = patch.landingPageUrl?.trim() || undefined; // ✅ novo
   }
   if (patch.price !== undefined) {
     sets.price =
@@ -184,7 +187,6 @@ export async function updateProduct(
   return updated ? toApi(updated) : null;
 }
 
-/** Exclui produto */
 export async function deleteProduct(id: string): Promise<boolean> {
   const col = await productsCol();
   const res = await col.deleteOne({ _id: oid(id) });
