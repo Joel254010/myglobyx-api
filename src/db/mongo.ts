@@ -117,3 +117,23 @@ export async function grantsCol(): Promise<Collection<GrantDoc>> {
 export async function connectToMongo() {
   await getDb();
 }
+
+/* ================== OPCIONAL: atualização direta ================== */
+export async function setLandingPageUrl(title: string, url: string) {
+  const col = await productsCol();
+  const result = await col.updateOne(
+    { title },
+    {
+      $set: {
+        landingPageUrl: url,
+        updatedAt: new Date(),
+      },
+    }
+  );
+
+  if (result.modifiedCount === 1) {
+    console.log(`✅ Landing page atualizada para "${title}"`);
+  } else {
+    console.warn(`⚠️ Produto "${title}" não encontrado ou já estava atualizado.`);
+  }
+}
