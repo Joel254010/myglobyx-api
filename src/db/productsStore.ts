@@ -1,4 +1,3 @@
-// src/db/productsStore.ts
 import { Collection, Filter, ObjectId, WithId } from "mongodb";
 import { productsCol, ProductDoc, oid } from "./mongo";
 
@@ -191,4 +190,11 @@ export async function deleteProduct(id: string): Promise<boolean> {
   const col = await productsCol();
   const res = await col.deleteOne({ _id: oid(id) });
   return res.deletedCount === 1;
+}
+
+/** ✅ NOVO: Busca produto por slug */
+export async function findProductBySlug(slug: string): Promise<Product | null> {
+  const col = await productsCol();
+  const doc = await col.findOne({ slug });
+  return doc ? toApi(doc) : null;
 }

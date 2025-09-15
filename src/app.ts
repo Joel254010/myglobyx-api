@@ -5,16 +5,21 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { ENV } from "./env";
 
-// Rotas
+// Rotas internas
 import authRoutes from "./routes/auth";
 import profileRoutes from "./routes/profile";
 import adminRoutes from "./routes/admin";
 import bibliotecaRoutes from "./routes/biblioteca";
 
+// ✅ Rota pública para redirecionamento via slug
+import publicRoutes from "./routes/public";
+
 const app: Application = express();
 app.set("trust proxy", 1);
 
-// Básico
+// ==================
+// 🧱 Básico
+// ==================
 app.use(helmet());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
@@ -54,7 +59,7 @@ const corsOptions: CorsOptions = {
 app.use(cors(corsOptions));
 
 // ==================
-// 🔒 Rate limit
+// 🚫 Rate limit
 // ==================
 app.use(
   rateLimit({
@@ -66,7 +71,7 @@ app.use(
 );
 
 // ==================
-// 📌 Rotas
+// 📌 Rotas protegidas
 // ==================
 const API = (ENV.API_PREFIX || "/api").replace(/\/+$/, "");
 
@@ -74,6 +79,11 @@ app.use(API, authRoutes);
 app.use(API, profileRoutes);
 app.use(API, bibliotecaRoutes);
 app.use(`${API}/admin`, adminRoutes);
+
+// ==================
+// 🌍 Rota pública SEM /api
+// ==================
+app.use("/", publicRoutes);
 
 // ✅ Raiz
 app.get("/", (_req, res) => {
