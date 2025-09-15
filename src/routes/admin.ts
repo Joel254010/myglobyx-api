@@ -86,22 +86,18 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Credenciais inválidas." });
     }
 
-    // helper seguro para extrair o id como string
-const sub =
-  (user as any)?._id?.toString?.() ??
-  String(user.email);
+    const sub = (user as any)?._id?.toString?.() ?? String(user.email);
 
-// token
-const token = jwt.sign(
-  {
-    sub,
-    email: user.email,
-    name: user.name || "Admin",
-    isAdmin: true,
-  },
-  ENV.JWT_SECRET || "devsecret",
-  { expiresIn: "7d" }
-);
+    const token = jwt.sign(
+      {
+        sub,
+        email: user.email,
+        name: user.name || "Admin",
+        isAdmin: true,
+      },
+      ENV.JWT_SECRET || "devsecret",
+      { expiresIn: "7d" }
+    );
 
     return res.json({
       token,
@@ -159,7 +155,18 @@ router.get("/products", async (_req, res) => {
 });
 
 router.post("/products", async (req, res) => {
-  const { title, description, mediaUrl, thumbnail, categoria, subcategoria, price, active } = req.body ?? {};
+  const {
+    title,
+    description,
+    mediaUrl,
+    thumbnail,
+    categoria,
+    subcategoria,
+    landingPageUrl, // ✅ incluído
+    price,
+    active,
+  } = req.body ?? {};
+
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "missing_title" });
   }
@@ -169,9 +176,10 @@ router.post("/products", async (req, res) => {
       title: title.trim(),
       description,
       mediaUrl,
-      thumbnail,      // ✅ novo
-      categoria,      // ✅ novo
-      subcategoria,   // ✅ novo
+      thumbnail,
+      categoria,
+      subcategoria,
+      landingPageUrl, // ✅ incluído aqui também
       price: Number.isFinite(Number(price)) ? Number(price) : undefined,
       active: Boolean(active),
     });
