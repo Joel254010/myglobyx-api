@@ -162,13 +162,18 @@ router.post("/products", async (req, res) => {
     thumbnail,
     categoria,
     subcategoria,
-    landingPageUrl, // ✅ incluído
+    landingPageUrl,
     price,
     active,
+    tipo, // ✅ incluído novo campo obrigatório
   } = req.body ?? {};
 
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "missing_title" });
+  }
+
+  if (!tipo || !["ebook", "curso", "servico"].includes(tipo)) {
+    return res.status(400).json({ error: "invalid_tipo", detail: "Tipo obrigatório: ebook | curso | servico" });
   }
 
   try {
@@ -179,7 +184,8 @@ router.post("/products", async (req, res) => {
       thumbnail,
       categoria,
       subcategoria,
-      landingPageUrl, // ✅ incluído aqui também
+      landingPageUrl,
+      tipo, // ✅ incluído aqui
       price: Number.isFinite(Number(price)) ? Number(price) : undefined,
       active: Boolean(active),
     });

@@ -20,11 +20,15 @@ export type ProductDoc = {
   slug: string;
   description?: string;
   mediaUrl?: string;
-  thumbnail?: string;      // ✅ novo
-  categoria?: string;      // ✅ novo
-  subcategoria?: string;   // ✅ novo
-  landingPageUrl?: string; // ✅ adicionado agora
+  thumbnail?: string;      
+  categoria?: string;      
+  subcategoria?: string;   
+  landingPageUrl?: string;
   price?: number;
+
+  /** ✅ Novo campo obrigatório para definir o tipo do produto */
+  tipo: "ebook" | "curso" | "servico";
+
   active: boolean;
   createdAt: Date;
   updatedAt?: Date;

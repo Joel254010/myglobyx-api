@@ -25,7 +25,8 @@ export type Product = {
   categoria?: string;
   subcategoria?: string;
   price?: number;
-  landingPageUrl?: string; // ✅ novo
+  landingPageUrl?: string;
+  tipo: "ebook" | "curso" | "servico"; // ✅ novo
   active: boolean;
   createdAt: string;
   updatedAt?: string;
@@ -42,7 +43,8 @@ function toApi(p: WithId<ProductDoc>): Product {
     categoria: p.categoria,
     subcategoria: p.subcategoria,
     price: p.price,
-    landingPageUrl: p.landingPageUrl, // ✅ novo
+    landingPageUrl: p.landingPageUrl,
+    tipo: p.tipo, // ✅ novo
     active: p.active,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt ? p.updatedAt.toISOString() : undefined,
@@ -91,8 +93,9 @@ export async function createProduct(payload: {
   thumbnail?: string;
   categoria?: string;
   subcategoria?: string;
-  landingPageUrl?: string; // ✅ novo
+  landingPageUrl?: string;
   price?: number;
+  tipo: "ebook" | "curso" | "servico"; // ✅ novo
   active?: boolean;
 }): Promise<Product> {
   const col = await productsCol();
@@ -112,11 +115,12 @@ export async function createProduct(payload: {
     thumbnail: payload.thumbnail?.trim() || undefined,
     categoria: payload.categoria?.trim() || undefined,
     subcategoria: payload.subcategoria?.trim() || undefined,
-    landingPageUrl: payload.landingPageUrl?.trim() || undefined, // ✅ novo
+    landingPageUrl: payload.landingPageUrl?.trim() || undefined,
     price:
       typeof payload.price === "number" && Number.isFinite(payload.price)
         ? payload.price
         : undefined,
+    tipo: payload.tipo,
     active: !!payload.active,
     createdAt: now,
     updatedAt: undefined,
@@ -137,8 +141,9 @@ export async function updateProduct(
     thumbnail?: string;
     categoria?: string;
     subcategoria?: string;
-    landingPageUrl?: string; // ✅ novo
+    landingPageUrl?: string;
     price?: number;
+    tipo?: "ebook" | "curso" | "servico"; // ✅ novo
     active?: boolean;
   }>
 ): Promise<Product | null> {
@@ -168,13 +173,16 @@ export async function updateProduct(
     sets.subcategoria = patch.subcategoria?.trim() || undefined;
   }
   if (patch.landingPageUrl !== undefined) {
-    sets.landingPageUrl = patch.landingPageUrl?.trim() || undefined; // ✅ novo
+    sets.landingPageUrl = patch.landingPageUrl?.trim() || undefined;
   }
   if (patch.price !== undefined) {
     sets.price =
       typeof patch.price === "number" && Number.isFinite(patch.price)
         ? patch.price
         : undefined;
+  }
+  if (patch.tipo !== undefined) {
+    sets.tipo = patch.tipo;
   }
   if (patch.active !== undefined) {
     sets.active = !!patch.active;
