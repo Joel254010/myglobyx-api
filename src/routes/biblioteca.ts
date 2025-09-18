@@ -20,7 +20,7 @@ router.get("/me/products", authRequired, async (req: Request, res: Response) => 
   const allow = new Set(grants.map((g) => g.productId));
 
   const items = await allProducts();
-  const mine = items.filter((p: Product) => p.active && allow.has(p.id));
+  const mine = items.filter((p: Product) => p.active && allow.has(p.id.toString()));
 
   return res.json({ products: mine });
 });
