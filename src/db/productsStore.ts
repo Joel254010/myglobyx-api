@@ -15,18 +15,22 @@ function makeSlugLocal(input: string): string {
 }
 
 /** Tipo usado nas respostas da API (id string em vez de ObjectId) */
+export type Aula = { titulo: string; capa?: string; link: string };
+
 export type Product = {
   id: string;
   title: string;
   slug: string;
   description?: string;
-  mediaUrl?: string;
-  thumbnail?: string;
+  mediaUrl?: string;       // ✅ usado em e-books
+  thumbnail?: string;      // ✅ imagem de capa
   categoria?: string;
   subcategoria?: string;
   price?: number;
   landingPageUrl?: string;
-  tipo: "ebook" | "curso" | "servico"; // ✅ novo
+  tipo: "ebook" | "curso" | "servico"; // ✅ padronizado
+  aulas?: Aula[];           // ✅ cursos
+  instrucoes?: string;      // ✅ serviços
   active: boolean;
   createdAt: string;
   updatedAt?: string;
@@ -44,7 +48,9 @@ function toApi(p: WithId<ProductDoc>): Product {
     subcategoria: p.subcategoria,
     price: p.price,
     landingPageUrl: p.landingPageUrl,
-    tipo: p.tipo, // ✅ novo
+    tipo: p.tipo,
+    aulas: p.aulas || [],          // ✅ cursos
+    instrucoes: p.instrucoes,      // ✅ serviços
     active: p.active,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt ? p.updatedAt.toISOString() : undefined,
@@ -95,7 +101,9 @@ export async function createProduct(payload: {
   subcategoria?: string;
   landingPageUrl?: string;
   price?: number;
-  tipo: "ebook" | "curso" | "servico"; // ✅ novo
+  tipo: "ebook" | "curso" | "servico";
+  aulas?: Aula[];
+  instrucoes?: string;
   active?: boolean;
 }): Promise<Product> {
   const col = await productsCol();
@@ -121,6 +129,8 @@ export async function createProduct(payload: {
         ? payload.price
         : undefined,
     tipo: payload.tipo,
+    aulas: payload.aulas || [],
+    instrucoes: payload.instrucoes?.trim() || undefined,
     active: !!payload.active,
     createdAt: now,
     updatedAt: undefined,
@@ -143,7 +153,9 @@ export async function updateProduct(
     subcategoria?: string;
     landingPageUrl?: string;
     price?: number;
-    tipo?: "ebook" | "curso" | "servico"; // ✅ novo
+    tipo?: "ebook" | "curso" | "servico";
+    aulas?: Aula[];
+    instrucoes?: string;
     active?: boolean;
   }>
 ): Promise<Product | null> {
@@ -157,36 +169,22 @@ export async function updateProduct(
     sets.title = title;
     sets.slug = await uniqueSlug(title, col, _id);
   }
-  if (patch.description !== undefined) {
-    sets.description = patch.description?.trim() || undefined;
-  }
-  if (patch.mediaUrl !== undefined) {
-    sets.mediaUrl = patch.mediaUrl?.trim() || undefined;
-  }
-  if (patch.thumbnail !== undefined) {
-    sets.thumbnail = patch.thumbnail?.trim() || undefined;
-  }
-  if (patch.categoria !== undefined) {
-    sets.categoria = patch.categoria?.trim() || undefined;
-  }
-  if (patch.subcategoria !== undefined) {
-    sets.subcategoria = patch.subcategoria?.trim() || undefined;
-  }
-  if (patch.landingPageUrl !== undefined) {
-    sets.landingPageUrl = patch.landingPageUrl?.trim() || undefined;
-  }
+  if (patch.description !== undefined) sets.description = patch.description?.trim() || undefined;
+  if (patch.mediaUrl !== undefined) sets.mediaUrl = patch.mediaUrl?.trim() || undefined;
+  if (patch.thumbnail !== undefined) sets.thumbnail = patch.thumbnail?.trim() || undefined;
+  if (patch.categoria !== undefined) sets.categoria = patch.categoria?.trim() || undefined;
+  if (patch.subcategoria !== undefined) sets.subcategoria = patch.subcategoria?.trim() || undefined;
+  if (patch.landingPageUrl !== undefined) sets.landingPageUrl = patch.landingPageUrl?.trim() || undefined;
   if (patch.price !== undefined) {
     sets.price =
       typeof patch.price === "number" && Number.isFinite(patch.price)
         ? patch.price
         : undefined;
   }
-  if (patch.tipo !== undefined) {
-    sets.tipo = patch.tipo;
-  }
-  if (patch.active !== undefined) {
-    sets.active = !!patch.active;
-  }
+  if (patch.tipo !== undefined) sets.tipo = patch.tipo;
+  if (patch.aulas !== undefined) sets.aulas = patch.aulas;
+  if (patch.instrucoes !== undefined) sets.instrucoes = patch.instrucoes?.trim() || undefined;
+  if (patch.active !== undefined) sets.active = !!patch.active;
 
   await col.updateOne({ _id }, { $set: sets });
 

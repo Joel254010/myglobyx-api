@@ -1,7 +1,6 @@
 // src/routes/biblioteca.ts
 import { Router, Request, Response } from "express";
-import { allProducts } from "../db/productsStore";
-import type { Product } from "../db/productsStore";
+import { allProducts, Product } from "../db/productsStore";
 import { authRequired } from "../middlewares/authJwt";
 import { grantsForEmail } from "../db/grantsStore";
 
@@ -20,9 +19,23 @@ router.get("/me/products", authRequired, async (req: Request, res: Response) => 
   const allow = new Set(grants.map((g) => g.productId));
 
   const items = await allProducts();
-  const mine = items.filter((p: Product) => p.active && allow.has(p.id.toString()));
 
-  return res.json({ products: mine });
+  // filtra só produtos ativos e concedidos ao usuário
+  const mine = items.filter((p: Product) => p.active && allow.has(p.id));
+
+  return res.json({
+    products: mine.map((p: Product) => ({
+      id: p.id,
+      title: p.title,
+      desc: p.description || "",
+      type: p.tipo || "premium",   // "ebook" | "curso" | "servico"
+      thumbnail: p.thumbnail || "",
+      mediaUrl: p.mediaUrl || "",  // usado para e-books
+      url: p.landingPageUrl || "", // usado para cursos (YouTube) ou LP
+      aulas: p.aulas || [],        // ✅ cursos
+      instrucoes: p.instrucoes || "" // ✅ serviços
+    })),
+  });
 });
 
 export default router;

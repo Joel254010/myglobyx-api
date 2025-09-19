@@ -14,20 +14,30 @@ export type UserDoc = {
   createdAt: Date;
 };
 
+export type AulaDoc = {
+  titulo: string;
+  capa?: string;
+  link: string;
+};
+
 export type ProductDoc = {
   _id?: ObjectId;
   title: string;
   slug: string;
   description?: string;
-  mediaUrl?: string;
-  thumbnail?: string;      
-  categoria?: string;      
-  subcategoria?: string;   
+  mediaUrl?: string;        // e-books
+  thumbnail?: string;       // imagem de capa
+  categoria?: string;
+  subcategoria?: string;
   landingPageUrl?: string;
   price?: number;
 
-  /** ✅ Novo campo obrigatório para definir o tipo do produto */
+  /** Tipo do produto: ebook | curso | servico */
   tipo: "ebook" | "curso" | "servico";
+
+  /** Campos específicos por tipo */
+  aulas?: AulaDoc[];        // cursos
+  instrucoes?: string;      // serviços
 
   active: boolean;
   createdAt: Date;
