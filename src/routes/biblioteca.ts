@@ -20,7 +20,6 @@ router.get("/me/products", authRequired, async (req: Request, res: Response) => 
 
   const items = await allProducts();
 
-  // filtra só produtos ativos e concedidos ao usuário
   const mine = items.filter((p: Product) => p.active && allow.has(p.id));
 
   return res.json({
@@ -31,7 +30,7 @@ router.get("/me/products", authRequired, async (req: Request, res: Response) => 
       type: p.tipo || "premium",   // "ebook" | "curso" | "servico"
       thumbnail: p.thumbnail || "",
       mediaUrl: p.mediaUrl || "",  // usado para e-books
-      url: p.landingPageUrl || "", // usado para cursos (YouTube) ou LP
+      url: p.aulas && p.aulas.length > 0 ? "" : (p.landingPageUrl || ""), // ⚡ só usa LP se não tiver aulas
       aulas: p.aulas || [],        // ✅ cursos
       instrucoes: p.instrucoes || "" // ✅ serviços
     })),
