@@ -27,7 +27,8 @@ export type Product = {
   categoria?: string;
   subcategoria?: string;
   price?: number;
-  landingPageUrl?: string;
+  landingPageUrl?: string; // ✅ Saiba Mais
+  checkoutUrl?: string;    // ✅ Novo: botão Comprar → Appmax
   tipo: "ebook" | "curso" | "servico"; // ✅ padronizado
   aulas?: Aula[];           // ✅ cursos
   instrucoes?: string;      // ✅ serviços
@@ -48,9 +49,10 @@ function toApi(p: WithId<ProductDoc>): Product {
     subcategoria: p.subcategoria,
     price: p.price,
     landingPageUrl: p.landingPageUrl,
+    checkoutUrl: p.checkoutUrl,   // ✅ devolve para API
     tipo: p.tipo,
-    aulas: p.aulas || [],          // ✅ cursos
-    instrucoes: p.instrucoes,      // ✅ serviços
+    aulas: p.aulas || [],
+    instrucoes: p.instrucoes,
     active: p.active,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt ? p.updatedAt.toISOString() : undefined,
@@ -100,6 +102,7 @@ export async function createProduct(payload: {
   categoria?: string;
   subcategoria?: string;
   landingPageUrl?: string;
+  checkoutUrl?: string;    // ✅ Novo
   price?: number;
   tipo: "ebook" | "curso" | "servico";
   aulas?: Aula[];
@@ -124,6 +127,7 @@ export async function createProduct(payload: {
     categoria: payload.categoria?.trim() || undefined,
     subcategoria: payload.subcategoria?.trim() || undefined,
     landingPageUrl: payload.landingPageUrl?.trim() || undefined,
+    checkoutUrl: payload.checkoutUrl?.trim() || undefined, // ✅ salva
     price:
       typeof payload.price === "number" && Number.isFinite(payload.price)
         ? payload.price
@@ -152,6 +156,7 @@ export async function updateProduct(
     categoria?: string;
     subcategoria?: string;
     landingPageUrl?: string;
+    checkoutUrl?: string;   // ✅ Novo
     price?: number;
     tipo?: "ebook" | "curso" | "servico";
     aulas?: Aula[];
@@ -175,6 +180,7 @@ export async function updateProduct(
   if (patch.categoria !== undefined) sets.categoria = patch.categoria?.trim() || undefined;
   if (patch.subcategoria !== undefined) sets.subcategoria = patch.subcategoria?.trim() || undefined;
   if (patch.landingPageUrl !== undefined) sets.landingPageUrl = patch.landingPageUrl?.trim() || undefined;
+  if (patch.checkoutUrl !== undefined) sets.checkoutUrl = patch.checkoutUrl?.trim() || undefined; // ✅ atualiza
   if (patch.price !== undefined) {
     sets.price =
       typeof patch.price === "number" && Number.isFinite(patch.price)

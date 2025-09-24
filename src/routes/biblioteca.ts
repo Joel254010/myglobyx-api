@@ -30,9 +30,13 @@ router.get("/me/products", authRequired, async (req: Request, res: Response) => 
       type: p.tipo || "premium",   // "ebook" | "curso" | "servico"
       thumbnail: p.thumbnail || "",
       mediaUrl: p.mediaUrl || "",  // usado para e-books
-      url: p.aulas && p.aulas.length > 0 ? "" : (p.landingPageUrl || ""), // ⚡ só usa LP se não tiver aulas
-      aulas: p.aulas || [],        // ✅ cursos
-      instrucoes: p.instrucoes || "" // ✅ serviços
+      url:
+        p.aulas && p.aulas.length > 0
+          ? ""
+          : (p.landingPageUrl || ""),
+      checkoutUrl: p.checkoutUrl || "", // ✅ agora devolve o link de checkout
+      aulas: p.aulas || [],             // ✅ cursos
+      instrucoes: p.instrucoes || ""    // ✅ serviços
     })),
   });
 });

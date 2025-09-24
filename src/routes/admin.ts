@@ -163,9 +163,10 @@ router.post("/products", async (req, res) => {
     categoria,
     subcategoria,
     landingPageUrl,
+    checkoutUrl,   // ✅ Novo campo vindo do body
     price,
     active,
-    tipo, // ✅ incluído novo campo obrigatório
+    tipo,
   } = req.body ?? {};
 
   if (!title || typeof title !== "string") {
@@ -173,7 +174,10 @@ router.post("/products", async (req, res) => {
   }
 
   if (!tipo || !["ebook", "curso", "servico"].includes(tipo)) {
-    return res.status(400).json({ error: "invalid_tipo", detail: "Tipo obrigatório: ebook | curso | servico" });
+    return res.status(400).json({
+      error: "invalid_tipo",
+      detail: "Tipo obrigatório: ebook | curso | servico",
+    });
   }
 
   try {
@@ -185,7 +189,8 @@ router.post("/products", async (req, res) => {
       categoria,
       subcategoria,
       landingPageUrl,
-      tipo, // ✅ incluído aqui
+      checkoutUrl,  // ✅ salvo no banco
+      tipo,
       price: Number.isFinite(Number(price)) ? Number(price) : undefined,
       active: Boolean(active),
     });

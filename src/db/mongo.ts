@@ -29,7 +29,8 @@ export type ProductDoc = {
   thumbnail?: string;       // imagem de capa
   categoria?: string;
   subcategoria?: string;
-  landingPageUrl?: string;
+  landingPageUrl?: string;  // Saiba Mais
+  checkoutUrl?: string;     // ✅ Novo: botão Comprar → Appmax
   price?: number;
 
   /** Tipo do produto: ebook | curso | servico */
